@@ -1,0 +1,10 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # Если запрашивают существующий файл или папку - не трогаем
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    
+    # Все запросы направляем в index.php
+    RewriteRule ^(.*)$ index.php [QSA,L]
+</IfModule>
