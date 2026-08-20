@@ -26,6 +26,8 @@ switch ($path) {
                 'endpoints' => [
                     'GET /api/' => 'Список всех эндпоинтов',
                     'POST /api/login/' => 'Авторизация пользователя',
+                    'GET /api/user/' => 'Получить информацию о пользователе (требуется токен)',
+                    'PUT /api/user/' => 'Обновить информацию о пользователе (требуется токен)',
                 ]
             ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
         } else {
@@ -41,6 +43,17 @@ switch ($path) {
         } else {
             http_response_code(405);
             echo json_encode(['error' => 'Метод не разрешён. Используйте POST.']);
+        }
+        break;
+        
+    case 'user':
+        // GET /api/user/ - получить информацию о пользователе
+        // PUT /api/user/ - обновить информацию о пользователе
+        if ($method === 'GET' || $method === 'PUT') {
+            require __DIR__ . '/user.php';
+        } else {
+            http_response_code(405);
+            echo json_encode(['error' => 'Метод не разрешён. Используйте GET или PUT.']);
         }
         break;
         

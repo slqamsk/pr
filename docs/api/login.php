@@ -1,14 +1,17 @@
 <?php
-// api/login.php
+// api/login.php - Эндпоинт для авторизации
 
 header('Content-Type: application/json');
+
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../src/models/UserModel.php';
 
 try {
     $userModel = new UserModel($pdo);
-    $inputData = json_decode(file_get_contents('php://input'), true);
 
+    // Получаем данные из POST-запроса
+    $inputData = json_decode(file_get_contents('php://input'), true);
+    
     if (!$inputData || !isset($inputData['username']) || !isset($inputData['password'])) {
         http_response_code(400);
         echo json_encode(['error' => 'Необходимо отправить JSON с полями username и password']);
@@ -18,16 +21,18 @@ try {
     $username = $inputData['username'];
     $password = $inputData['password'];
 
+    // Ищем пользователя в БД
     $user = $userModel->findByUsername($username);
 
+    // Проверяем пароль
     if ($user && password_verify($password, $user['password_hash'])) {
-        // Проверяем, есть ли уже активный токен
+        // Проверяем, есть ли уже активный токен у этого пользователя
         $stmt = $pdo->prepare("SELECT token FROM api_tokens WHERE user_id = ? AND expires_at > NOW()");
         $stmt->execute([$user['id']]);
         $existingToken = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($existingToken) {
-            // Возвращаем существующий токен
+            // Токен уже есть — возвращаем его
             http_response_code(200);
             echo json_encode([
                 'success' => true,
@@ -37,8 +42,9 @@ try {
             exit;
         }
 
-        // Создаём новый токен
+        // Токена нет — создаём новый
         $token = bin2hex(random_bytes(32));
+        
         $stmt = $pdo->prepare("INSERT INTO api_tokens (user_id, token, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 30 DAY))");
         $stmt->execute([$user['id'], $token]);
 

@@ -40,4 +40,52 @@ class UserModel {
             throw new Exception('Ошибка проверки токена: ' . $e->getMessage());
         }
     }
+
+    // === НОВЫЕ МЕТОДЫ ===
+
+    // Найти пользователя по ID
+    public function findById($id) {
+        try {
+            $stmt = $this->pdo->prepare("SELECT id, username, email, created_at FROM users WHERE id = ?");
+            $stmt->execute([$id]);
+            return $stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            throw new Exception('Ошибка поиска пользователя: ' . $e->getMessage());
+        }
+    }
+
+    // Обновить данные пользователя
+    public function update($id, $data) {
+        try {
+            $fields = [];
+            $params = [];
+            
+            if (isset($data['email'])) {
+                $fields[] = "email = ?";
+                $params[] = $data['email'];
+            }
+            
+            if (isset($data['password'])) {
+                $fields[] = "password_hash = ?";
+                $params[] = password_hash($data['password'], PASSWORD_DEFAULT);
+            }
+            
+            if (empty($fields)) {
+                return false;
+            }
+            
+            $params[] = $id;
+            $sql = "UPDATE users SET " . implode(', ', $fields) . " WHERE id = ?";
+            $stmt = $this->pdo->prepare($sql);
+            return $stmt->execute($params);
+        } catch (PDOException $e) {
+            throw new Exception('Ошибка обновления пользователя: ' . $e->getMessage());
+        }
+    }
+
+    // Получить ID пользователя по токену (обёртка над findToken)
+    public function getUserIdByToken($token) {
+        $result = $this->findToken($token);
+        return $result ? $result['user_id'] : null;
+    }
 }
