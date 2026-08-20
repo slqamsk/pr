@@ -9,9 +9,8 @@ require_once __DIR__ . '/../src/models/UserModel.php';
 try {
     $userModel = new UserModel($pdo);
 
-    // Получаем токен из заголовка Authorization
-    $headers = getallheaders();
-    $authHeader = $headers['Authorization'] ?? '';
+    // Получаем токен (работает на всех хостингах)
+    $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
     
     if (empty($authHeader) || !preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
         http_response_code(401);
@@ -59,7 +58,6 @@ try {
             exit;
         }
         
-        // Проверяем, что есть что обновлять
         if (!isset($inputData['email']) && !isset($inputData['password'])) {
             http_response_code(400);
             echo json_encode(['error' => 'Укажите email или password для обновления']);
