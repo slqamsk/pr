@@ -54,12 +54,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['username']) && isset(
     <div class="container">
         <div class="box">
             <h1>🔐 Вход</h1>
-            <form method="POST">
+            <form method="POST" action="">
                 <label for="username">Логин:</label>
-                <input type="text" id="username" name="username" required>
+                <input type="text" id="username" name="username" autocomplete="username" required>
                 
                 <label for="password">Пароль:</label>
-                <input type="password" id="password" name="password" required>
+                <input type="password" id="password" name="password" autocomplete="current-password" required>
                 
                 <button type="submit">Войти</button>
             </form>
