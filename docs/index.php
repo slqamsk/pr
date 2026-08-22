@@ -1,46 +1,16 @@
 <?php
-// docs/index.php - Страница логина
+// docs/index.php - Страница логина (только форма)
 session_start();
 
-// Если пользователь уже авторизован, перенаправляем на профиль
+// Если уже залогинен — сразу в профиль
 if (isset($_SESSION['token'])) {
     header('Location: pages/profile.php');
     exit;
 }
 
-// Проверяем, пришёл ли запрос на логин
-$loginError = '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['username']) && isset($_POST['password'])) {
-    $username = $_POST['username'];
-    $password = $_POST['password'];
-    
-    // Отправляем запрос к API
-    $ch = curl_init('https://slqa.ru/pr/api/login/');
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-        'username' => $username,
-        'password' => $password
-    ]));
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Content-Type: application/json'
-    ]);
-    
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    
-    if ($httpCode === 200) {
-        $data = json_decode($response, true);
-        if (isset($data['token'])) {
-            $_SESSION['token'] = $data['token'];
-            header('Location: pages/profile.php');
-            exit;
-        }
-    } else {
-        $loginError = 'Неверный логин или пароль';
-    }
-}
+// Проверяем, есть ли ошибка из сессии (переданная из profile.php)
+$loginError = $_SESSION['login_error'] ?? '';
+unset($_SESSION['login_error']); // удаляем после чтения
 ?>
 <!DOCTYPE html>
 <html lang="ru">
@@ -54,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['username']) && isset(
     <div class="container">
         <div class="box">
             <h1>🔐 Вход</h1>
-            <form method="POST" action="">
+            <form method="POST" action="pages/profile.php">
                 <label for="username">Логин:</label>
                 <input type="text" id="username" name="username" autocomplete="username" required>
                 
