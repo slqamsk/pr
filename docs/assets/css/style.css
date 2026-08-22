@@ -1,0 +1,175 @@
+/* docs/assets/css/style.css - Общие стили для всех страниц */
+
+/* Общие стили */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    background: #f0f2f5;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+/* Контейнер */
+.container {
+    width: 100%;
+    max-width: 500px;
+}
+
+/* Карточка */
+.box {
+    background: #ffffff;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+
+/* Заголовки */
+h1, h2 {
+    color: #1a1a2e;
+    margin-top: 0;
+    margin-bottom: 20px;
+}
+h2 {
+    font-size: 1.2rem;
+    margin-top: 20px;
+}
+
+/* Информация о пользователе */
+.info {
+    background: #f8f9fa;
+    padding: 15px 18px;
+    border-radius: 8px;
+    margin-bottom: 25px;
+    border-left: 4px solid #0d6efd;
+}
+.info p {
+    margin: 6px 0;
+    font-size: 0.95rem;
+}
+.info strong {
+    color: #333;
+    display: inline-block;
+    min-width: 100px;
+}
+
+/* Поля ввода */
+label {
+    display: block;
+    margin: 18px 0 6px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #333;
+}
+input[type="text"],
+input[type="email"],
+input[type="password"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1.5px solid #ddd;
+    border-radius: 6px;
+    font-size: 1rem;
+    transition: border-color 0.2s;
+    background: #fafafa;
+}
+input:focus {
+    border-color: #0d6efd;
+    outline: none;
+    background: #fff;
+}
+
+/* Кнопки */
+button {
+    width: 100%;
+    padding: 12px;
+    background: #0d6efd;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+    margin-top: 20px;
+}
+button:hover {
+    background: #0b5ed7;
+}
+button:active {
+    background: #0a58ca;
+}
+
+/* Кнопка "Выйти" */
+.logout-link {
+    display: inline-block;
+    padding: 10px 20px;
+    background: #dc3545;
+    color: #fff;
+    text-decoration: none;
+    border-radius: 6px;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+.logout-link:hover {
+    background: #c82333;
+}
+
+/* Сообщения */
+.message {
+    color: #0f5132;
+    background: #d1e7dd;
+    padding: 12px 16px;
+    border-radius: 6px;
+    border: 1px solid #badbcc;
+    margin-top: 15px;
+}
+.error {
+    color: #842029;
+    background: #f8d7da;
+    padding: 12px 16px;
+    border-radius: 6px;
+    border: 1px solid #f5c2c7;
+    margin-top: 15px;
+}
+
+/* Группа кнопок */
+.buttons {
+    display: flex;
+    gap: 12px;
+    margin-top: 25px;
+    flex-wrap: wrap;
+}
+.buttons button {
+    flex: 2;
+    min-width: 140px;
+    margin-top: 0;
+}
+.buttons .logout-link {
+    flex: 1;
+    min-width: 100px;
+    text-align: center;
+    padding: 12px 10px;
+}
+
+/* Адаптивность для маленьких экранов */
+@media (max-width: 480px) {
+    .box {
+        padding: 20px;
+    }
+    .buttons {
+        flex-direction: column;
+    }
+    .buttons button,
+    .buttons .logout-link {
+        flex: 1;
+        width: 100%;
+        text-align: center;
+    }
+}
