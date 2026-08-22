@@ -122,7 +122,7 @@ if ($userData === null) {
                 
                 <div class="buttons">
                     <button type="submit">Сохранить</button>
-                    <a href="../logout.php" class="logout-link">Выйти</a>
+                    <a href="logout.php" class="logout-link">Выйти</a>
                 </div>
             </form>
         </div>
