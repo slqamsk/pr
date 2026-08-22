@@ -24,7 +24,7 @@ unset($_SESSION['login_error']); // удаляем после чтения
     <div class="container">
         <div class="box">
             <h1>🔐 Вход</h1>
-            <form method="POST" action="pages/profile.php">
+            <form method="POST" action="/pr/pages/profile.php">
                 <label for="username">Логин:</label>
                 <input type="text" id="username" name="username" autocomplete="username" required>
                 
