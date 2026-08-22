@@ -58,9 +58,10 @@ try {
             exit;
         }
         
-        if (!isset($inputData['email']) && !isset($inputData['password'])) {
+        // Разрешаем обновление username, email и password
+        if (!isset($inputData['username']) && !isset($inputData['email']) && !isset($inputData['password'])) {
             http_response_code(400);
-            echo json_encode(['error' => 'Укажите email или password для обновления']);
+            echo json_encode(['error' => 'Укажите username, email или password для обновления']);
             exit;
         }
         
@@ -81,6 +82,6 @@ try {
         echo json_encode(['error' => 'Метод не разрешён. Используйте GET или PUT.']);
     }
 } catch (Exception $e) {
-    http_response_code(500);
+    http_response_code(400); // 400 - ошибка валидации
     echo json_encode(['error' => $e->getMessage()]);
 }
