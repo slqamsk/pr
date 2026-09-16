@@ -58,7 +58,8 @@
   "person": {
     "gender": "male",
     "date_of_birth": "1975-01-20",
-    "city": "Moscow, Russia"
+    "city": "Moscow, Russia",
+    "living_environment": "Живу в крупном городе, на окраине, рядом с парком и Яузой."
   },
   "anthropometry": [
     {
