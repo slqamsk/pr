@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="defs" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-js (https://demo.bpmn.io)" exporterVersion="18.28.0">
+  <bpmn:process id="proc" isExecutable="false">
+    <bpmn:subProcess id="sp_spend" name="Вариант: потратить деньги">
+      <bpmn:startEvent id="sp_spend_start" />
+      <bpmn:task id="t_spend" name="Потратить 20 тыс. рублей" />
+      <bpmn:endEvent id="sp_spend_end" />
+      <bpmn:sequenceFlow id="s1" sourceRef="sp_spend_start" targetRef="t_spend" />
+      <bpmn:sequenceFlow id="s2" sourceRef="t_spend" targetRef="sp_spend_end" />
+    </bpmn:subProcess>
+    <bpmn:subProcess id="sp_hotel" name="Вариант: природа">
+      <bpmn:startEvent id="sp_hotel_start" />
+      <bpmn:task id="t_hotel" name="Найти дешёвую гостиницу" />
+      <bpmn:parallelGateway id="and_nature_parallel_split" name="Транспорт и природа" />
+      <bpmn:exclusiveGateway id="xor_transport_choice_split" name="Способ добраться" />
+      <bpmn:task id="t_walk" name="Добираться 3 часа" />
+      <bpmn:task id="t_taxi" name="Потратить 3 тыс. руб. на такси" />
+      <bpmn:exclusiveGateway id="xor_transport_choice_join" name="Способ добраться" />
+      <bpmn:task id="t_nature" name="Любить природу" />
+      <bpmn:parallelGateway id="and_nature_parallel_join" name="Транспорт и природа" />
+      <bpmn:endEvent id="sp_hotel_end" />
+      <bpmn:sequenceFlow id="h1" sourceRef="sp_hotel_start" targetRef="t_hotel" />
+      <bpmn:sequenceFlow id="h2" sourceRef="t_hotel" targetRef="and_nature_parallel_split" />
+      <bpmn:sequenceFlow id="h3" sourceRef="and_nature_parallel_split" targetRef="xor_transport_choice_split" />
+      <bpmn:sequenceFlow id="h4" sourceRef="xor_transport_choice_split" targetRef="t_walk" />
+      <bpmn:sequenceFlow id="h5" sourceRef="xor_transport_choice_split" targetRef="t_taxi" />
+      <bpmn:sequenceFlow id="h6" sourceRef="t_walk" targetRef="xor_transport_choice_join" />
+      <bpmn:sequenceFlow id="h7" sourceRef="t_taxi" targetRef="xor_transport_choice_join" />
+      <bpmn:sequenceFlow id="h8" sourceRef="and_nature_parallel_split" targetRef="t_nature" />
+      <bpmn:sequenceFlow id="h9" sourceRef="xor_transport_choice_join" targetRef="and_nature_parallel_join" />
+      <bpmn:sequenceFlow id="h10" sourceRef="t_nature" targetRef="and_nature_parallel_join" />
+      <bpmn:sequenceFlow id="h11" sourceRef="and_nature_parallel_join" targetRef="sp_hotel_end" />
+    </bpmn:subProcess>
+    <bpmn:subProcess id="sp_friends" name="Вариант: друзья">
+      <bpmn:startEvent id="sp_friends_start" />
+      <bpmn:task id="t_friends" name="Иметь хороших друзей!" />
+      <bpmn:task id="t_call" name="Обзвонить друзей" />
+      <bpmn:parallelGateway id="and_friends_parallel_split" name="Вечеринка и настолки" />
+      <bpmn:exclusiveGateway id="xor_venue_choice_split" name="Место вечеринки" />
+      <bpmn:task id="t_home" name="Организовать вечеринку дома" />
+      <bpmn:task id="t_find" name="Найти у кого организовать" />
+      <bpmn:exclusiveGateway id="xor_venue_choice_join" name="Место вечеринки" />
+      <bpmn:task id="t_board" name="Любить настолки" />
+      <bpmn:parallelGateway id="and_friends_parallel_join" name="Вечеринка и настолки" />
+      <bpmn:endEvent id="sp_friends_end" />
+      <bpmn:sequenceFlow id="k1" sourceRef="sp_friends_start" targetRef="t_friends" />
+      <bpmn:sequenceFlow id="k2" sourceRef="t_friends" targetRef="t_call" />
+      <bpmn:sequenceFlow id="k3" sourceRef="t_call" targetRef="and_friends_parallel_split" />
+      <bpmn:sequenceFlow id="k4" sourceRef="and_friends_parallel_split" targetRef="xor_venue_choice_split" />
+      <bpmn:sequenceFlow id="k5" sourceRef="xor_venue_choice_split" targetRef="t_home" />
+      <bpmn:sequenceFlow id="k6" sourceRef="xor_venue_choice_split" targetRef="t_find" />
+      <bpmn:sequenceFlow id="k7" sourceRef="t_home" targetRef="xor_venue_choice_join" />
+      <bpmn:sequenceFlow id="k8" sourceRef="t_find" targetRef="xor_venue_choice_join" />
+      <bpmn:sequenceFlow id="k9" sourceRef="and_friends_parallel_split" targetRef="t_board" />
+      <bpmn:sequenceFlow id="k10" sourceRef="xor_venue_choice_join" targetRef="and_friends_parallel_join" />
+      <bpmn:sequenceFlow id="k11" sourceRef="t_board" targetRef="and_friends_parallel_join" />
+      <bpmn:sequenceFlow id="k12" sourceRef="and_friends_parallel_join" targetRef="sp_friends_end" />
+    </bpmn:subProcess>
+    <bpmn:startEvent id="start" name="Начало" />
+    <bpmn:exclusiveGateway id="xor_choice_weekend_split" name="Варианты проведения выходных" />
+    <bpmn:sequenceFlow id="f1" sourceRef="start" targetRef="xor_choice_weekend_split" />
+    <bpmn:sequenceFlow id="f2" sourceRef="xor_choice_weekend_split" targetRef="sp_spend" />
+    <bpmn:sequenceFlow id="f3" sourceRef="xor_choice_weekend_split" targetRef="sp_hotel" />
+    <bpmn:sequenceFlow id="f4" sourceRef="xor_choice_weekend_split" targetRef="sp_friends" />
+    <bpmn:exclusiveGateway id="xor_choice_weekend_join" name="Варианты проведения выходных" />
+    <bpmn:sequenceFlow id="f5" sourceRef="sp_spend" targetRef="xor_choice_weekend_join" />
+    <bpmn:sequenceFlow id="f6" sourceRef="sp_hotel" targetRef="xor_choice_weekend_join" />
+    <bpmn:sequenceFlow id="f7" sourceRef="sp_friends" targetRef="xor_choice_weekend_join" />
+    <bpmn:sequenceFlow id="f8" sourceRef="xor_choice_weekend_join" targetRef="end" />
+    <bpmn:endEvent id="end" name="Конец" />
+  </bpmn:process>
+</bpmn:definitions>

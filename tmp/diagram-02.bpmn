@@ -1,0 +1,361 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="defs" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-js (https://demo.bpmn.io)" exporterVersion="18.28.0">
+  <bpmn:process id="proc" isExecutable="false">
+    <bpmn:subProcess id="sp_spend" name="Вариант: потратить деньги">
+      <bpmn:startEvent id="sp_spend_start" />
+      <bpmn:task id="t_spend" name="Потратить 20 тыс. рублей" />
+      <bpmn:endEvent id="sp_spend_end" />
+      <bpmn:sequenceFlow id="s1" sourceRef="sp_spend_start" targetRef="t_spend" />
+      <bpmn:sequenceFlow id="s2" sourceRef="t_spend" targetRef="sp_spend_end" />
+    </bpmn:subProcess>
+    <bpmn:subProcess id="sp_hotel" name="Вариант: природа">
+      <bpmn:startEvent id="sp_hotel_start" />
+      <bpmn:task id="t_hotel" name="Найти дешёвую гостиницу" />
+      <bpmn:parallelGateway id="and_nature_parallel_split" name="Транспорт и природа" />
+      <bpmn:exclusiveGateway id="xor_transport_choice_split" name="Способ добраться" />
+      <bpmn:task id="t_walk" name="Добираться 3 часа" />
+      <bpmn:task id="t_taxi" name="Потратить 3 тыс. руб. на такси" />
+      <bpmn:exclusiveGateway id="xor_transport_choice_join" name="Способ добраться" />
+      <bpmn:task id="t_nature" name="Любить природу" />
+      <bpmn:parallelGateway id="and_nature_parallel_join" name="Транспорт и природа" />
+      <bpmn:endEvent id="sp_hotel_end" />
+      <bpmn:sequenceFlow id="h1" sourceRef="sp_hotel_start" targetRef="t_hotel" />
+      <bpmn:sequenceFlow id="h2" sourceRef="t_hotel" targetRef="and_nature_parallel_split" />
+      <bpmn:sequenceFlow id="h3" sourceRef="and_nature_parallel_split" targetRef="xor_transport_choice_split" />
+      <bpmn:sequenceFlow id="h4" sourceRef="xor_transport_choice_split" targetRef="t_walk" />
+      <bpmn:sequenceFlow id="h5" sourceRef="xor_transport_choice_split" targetRef="t_taxi" />
+      <bpmn:sequenceFlow id="h6" sourceRef="t_walk" targetRef="xor_transport_choice_join" />
+      <bpmn:sequenceFlow id="h7" sourceRef="t_taxi" targetRef="xor_transport_choice_join" />
+      <bpmn:sequenceFlow id="h8" sourceRef="and_nature_parallel_split" targetRef="t_nature" />
+      <bpmn:sequenceFlow id="h9" sourceRef="xor_transport_choice_join" targetRef="and_nature_parallel_join" />
+      <bpmn:sequenceFlow id="h10" sourceRef="t_nature" targetRef="and_nature_parallel_join" />
+      <bpmn:sequenceFlow id="h11" sourceRef="and_nature_parallel_join" targetRef="sp_hotel_end" />
+    </bpmn:subProcess>
+    <bpmn:subProcess id="sp_friends" name="Вариант: друзья">
+      <bpmn:startEvent id="sp_friends_start" />
+      <bpmn:task id="t_friends" name="Иметь хороших друзей!" />
+      <bpmn:task id="t_call" name="Обзвонить друзей" />
+      <bpmn:parallelGateway id="and_friends_parallel_split" name="Вечеринка и настолки" />
+      <bpmn:exclusiveGateway id="xor_venue_choice_split" name="Место вечеринки" />
+      <bpmn:task id="t_home" name="Организовать вечеринку дома" />
+      <bpmn:task id="t_find" name="Найти у кого организовать" />
+      <bpmn:exclusiveGateway id="xor_venue_choice_join" name="Место вечеринки" />
+      <bpmn:task id="t_board" name="Любить настолки" />
+      <bpmn:parallelGateway id="and_friends_parallel_join" name="Вечеринка и настолки" />
+      <bpmn:endEvent id="sp_friends_end" />
+      <bpmn:sequenceFlow id="k1" sourceRef="sp_friends_start" targetRef="t_friends" />
+      <bpmn:sequenceFlow id="k2" sourceRef="t_friends" targetRef="t_call" />
+      <bpmn:sequenceFlow id="k3" sourceRef="t_call" targetRef="and_friends_parallel_split" />
+      <bpmn:sequenceFlow id="k4" sourceRef="and_friends_parallel_split" targetRef="xor_venue_choice_split" />
+      <bpmn:sequenceFlow id="k5" sourceRef="xor_venue_choice_split" targetRef="t_home" />
+      <bpmn:sequenceFlow id="k6" sourceRef="xor_venue_choice_split" targetRef="t_find" />
+      <bpmn:sequenceFlow id="k7" sourceRef="t_home" targetRef="xor_venue_choice_join" />
+      <bpmn:sequenceFlow id="k8" sourceRef="t_find" targetRef="xor_venue_choice_join" />
+      <bpmn:sequenceFlow id="k9" sourceRef="and_friends_parallel_split" targetRef="t_board" />
+      <bpmn:sequenceFlow id="k10" sourceRef="xor_venue_choice_join" targetRef="and_friends_parallel_join" />
+      <bpmn:sequenceFlow id="k11" sourceRef="t_board" targetRef="and_friends_parallel_join" />
+      <bpmn:sequenceFlow id="k12" sourceRef="and_friends_parallel_join" targetRef="sp_friends_end" />
+    </bpmn:subProcess>
+    <bpmn:startEvent id="start" name="Начало" />
+    <bpmn:exclusiveGateway id="xor_choice_weekend_split" name="Варианты проведения выходных" />
+    <bpmn:sequenceFlow id="f1" sourceRef="start" targetRef="xor_choice_weekend_split" />
+    <bpmn:sequenceFlow id="f2" sourceRef="xor_choice_weekend_split" targetRef="sp_spend" />
+    <bpmn:sequenceFlow id="f3" sourceRef="xor_choice_weekend_split" targetRef="sp_hotel" />
+    <bpmn:sequenceFlow id="f4" sourceRef="xor_choice_weekend_split" targetRef="sp_friends" />
+    <bpmn:exclusiveGateway id="xor_choice_weekend_join" name="Варианты проведения выходных" />
+    <bpmn:sequenceFlow id="f5" sourceRef="sp_spend" targetRef="xor_choice_weekend_join" />
+    <bpmn:sequenceFlow id="f6" sourceRef="sp_hotel" targetRef="xor_choice_weekend_join" />
+    <bpmn:sequenceFlow id="f7" sourceRef="sp_friends" targetRef="xor_choice_weekend_join" />
+    <bpmn:sequenceFlow id="f8" sourceRef="xor_choice_weekend_join" targetRef="end" />
+    <bpmn:endEvent id="end" name="Конец" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_proc">
+    <bpmndi:BPMNPlane id="BPMNPlane_proc" bpmnElement="proc">
+      <bpmndi:BPMNShape id="BPMNShape_sp_spend" bpmnElement="sp_spend">
+        <dc:Bounds x="366" y="240" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_sp_hotel" bpmnElement="sp_hotel">
+        <dc:Bounds x="366" y="400" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_sp_friends" bpmnElement="sp_friends">
+        <dc:Bounds x="366" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_start" bpmnElement="start">
+        <dc:Bounds x="80" y="262" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="75" y="303" width="46" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_xor_choice_weekend_split" bpmnElement="xor_choice_weekend_split" isMarkerVisible="true">
+        <dc:Bounds x="216" y="255" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="144" y="310" width="74" height="42" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_xor_choice_weekend_join" bpmnElement="xor_choice_weekend_join" isMarkerVisible="true">
+        <dc:Bounds x="566" y="255" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="494" y="310" width="74" height="42" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_end" bpmnElement="end">
+        <dc:Bounds x="716" y="262" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="715" y="303" width="39" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="BPMNEdge_f1" bpmnElement="f1">
+        <di:waypoint x="116" y="280" />
+        <di:waypoint x="216" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_f2" bpmnElement="f2">
+        <di:waypoint x="266" y="280" />
+        <di:waypoint x="366" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_f5" bpmnElement="f5">
+        <di:waypoint x="466" y="280" />
+        <di:waypoint x="566" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_f8" bpmnElement="f8">
+        <di:waypoint x="616" y="280" />
+        <di:waypoint x="716" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_f3" bpmnElement="f3">
+        <di:waypoint x="241" y="305" />
+        <di:waypoint x="241" y="440" />
+        <di:waypoint x="366" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_f4" bpmnElement="f4">
+        <di:waypoint x="241" y="255" />
+        <di:waypoint x="241" y="120" />
+        <di:waypoint x="366" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_f6" bpmnElement="f6">
+        <di:waypoint x="466" y="440" />
+        <di:waypoint x="591" y="440" />
+        <di:waypoint x="591" y="305" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_f7" bpmnElement="f7">
+        <di:waypoint x="466" y="120" />
+        <di:waypoint x="591" y="120" />
+        <di:waypoint x="591" y="255" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_sp_spend">
+    <bpmndi:BPMNPlane id="BPMNPlane_sp_spend" bpmnElement="sp_spend">
+      <bpmndi:BPMNShape id="BPMNShape_sp_spend_start" bpmnElement="sp_spend_start">
+        <dc:Bounds x="80" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_t_spend" bpmnElement="t_spend">
+        <dc:Bounds x="216" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_sp_spend_end" bpmnElement="sp_spend_end">
+        <dc:Bounds x="416" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="BPMNEdge_s1" bpmnElement="s1">
+        <di:waypoint x="116" y="120" />
+        <di:waypoint x="216" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_s2" bpmnElement="s2">
+        <di:waypoint x="316" y="120" />
+        <di:waypoint x="416" y="120" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_sp_hotel">
+    <bpmndi:BPMNPlane id="BPMNPlane_sp_hotel" bpmnElement="sp_hotel">
+      <bpmndi:BPMNShape id="BPMNShape_sp_hotel_start" bpmnElement="sp_hotel_start">
+        <dc:Bounds x="80" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_t_hotel" bpmnElement="t_hotel">
+        <dc:Bounds x="216" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_and_nature_parallel_split" bpmnElement="and_nature_parallel_split" isMarkerVisible="true">
+        <dc:Bounds x="416" y="95" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="402" y="62" width="78" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_xor_transport_choice_split" bpmnElement="xor_transport_choice_split" isMarkerVisible="true">
+        <dc:Bounds x="591" y="95" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="583" y="62" width="67" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_t_walk" bpmnElement="t_walk">
+        <dc:Bounds x="766" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_t_taxi" bpmnElement="t_taxi">
+        <dc:Bounds x="766" y="240" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_xor_transport_choice_join" bpmnElement="xor_transport_choice_join" isMarkerVisible="true">
+        <dc:Bounds x="966" y="95" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="958" y="62" width="67" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_t_nature" bpmnElement="t_nature">
+        <dc:Bounds x="566" y="400" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_and_nature_parallel_join" bpmnElement="and_nature_parallel_join" isMarkerVisible="true">
+        <dc:Bounds x="1116" y="95" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1102" y="62" width="78" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_sp_hotel_end" bpmnElement="sp_hotel_end">
+        <dc:Bounds x="1266" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="BPMNEdge_h1" bpmnElement="h1">
+        <di:waypoint x="116" y="120" />
+        <di:waypoint x="216" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_h2" bpmnElement="h2">
+        <di:waypoint x="316" y="120" />
+        <di:waypoint x="416" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_h3" bpmnElement="h3">
+        <di:waypoint x="466" y="120" />
+        <di:waypoint x="591" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_h4" bpmnElement="h4">
+        <di:waypoint x="641" y="120" />
+        <di:waypoint x="766" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_h6" bpmnElement="h6">
+        <di:waypoint x="866" y="120" />
+        <di:waypoint x="966" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_h9" bpmnElement="h9">
+        <di:waypoint x="1016" y="120" />
+        <di:waypoint x="1116" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_h11" bpmnElement="h11">
+        <di:waypoint x="1166" y="120" />
+        <di:waypoint x="1266" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_h5" bpmnElement="h5">
+        <di:waypoint x="616" y="145" />
+        <di:waypoint x="616" y="280" />
+        <di:waypoint x="766" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_h7" bpmnElement="h7">
+        <di:waypoint x="866" y="280" />
+        <di:waypoint x="991" y="280" />
+        <di:waypoint x="991" y="145" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_h8" bpmnElement="h8">
+        <di:waypoint x="441" y="145" />
+        <di:waypoint x="441" y="440" />
+        <di:waypoint x="566" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_h10" bpmnElement="h10">
+        <di:waypoint x="666" y="440" />
+        <di:waypoint x="1141" y="440" />
+        <di:waypoint x="1141" y="145" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_sp_friends">
+    <bpmndi:BPMNPlane id="BPMNPlane_sp_friends" bpmnElement="sp_friends">
+      <bpmndi:BPMNShape id="BPMNShape_sp_friends_start" bpmnElement="sp_friends_start">
+        <dc:Bounds x="80" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_t_friends" bpmnElement="t_friends">
+        <dc:Bounds x="216" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_t_call" bpmnElement="t_call">
+        <dc:Bounds x="416" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_and_friends_parallel_split" bpmnElement="and_friends_parallel_split" isMarkerVisible="true">
+        <dc:Bounds x="616" y="95" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="602" y="62" width="78" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_xor_venue_choice_split" bpmnElement="xor_venue_choice_split" isMarkerVisible="true">
+        <dc:Bounds x="791" y="95" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="783" y="62" width="67" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_t_home" bpmnElement="t_home">
+        <dc:Bounds x="966" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_t_find" bpmnElement="t_find">
+        <dc:Bounds x="966" y="240" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_xor_venue_choice_join" bpmnElement="xor_venue_choice_join" isMarkerVisible="true">
+        <dc:Bounds x="1166" y="95" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1158" y="62" width="67" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_t_board" bpmnElement="t_board">
+        <dc:Bounds x="766" y="400" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_and_friends_parallel_join" bpmnElement="and_friends_parallel_join" isMarkerVisible="true">
+        <dc:Bounds x="1316" y="95" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1302" y="62" width="78" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_sp_friends_end" bpmnElement="sp_friends_end">
+        <dc:Bounds x="1466" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="BPMNEdge_k1" bpmnElement="k1">
+        <di:waypoint x="116" y="120" />
+        <di:waypoint x="216" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_k2" bpmnElement="k2">
+        <di:waypoint x="316" y="120" />
+        <di:waypoint x="416" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_k3" bpmnElement="k3">
+        <di:waypoint x="516" y="120" />
+        <di:waypoint x="616" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_k4" bpmnElement="k4">
+        <di:waypoint x="666" y="120" />
+        <di:waypoint x="791" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_k5" bpmnElement="k5">
+        <di:waypoint x="841" y="120" />
+        <di:waypoint x="966" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_k7" bpmnElement="k7">
+        <di:waypoint x="1066" y="120" />
+        <di:waypoint x="1166" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_k10" bpmnElement="k10">
+        <di:waypoint x="1216" y="120" />
+        <di:waypoint x="1316" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_k12" bpmnElement="k12">
+        <di:waypoint x="1366" y="120" />
+        <di:waypoint x="1466" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_k6" bpmnElement="k6">
+        <di:waypoint x="816" y="145" />
+        <di:waypoint x="816" y="280" />
+        <di:waypoint x="966" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_k8" bpmnElement="k8">
+        <di:waypoint x="1066" y="280" />
+        <di:waypoint x="1191" y="280" />
+        <di:waypoint x="1191" y="145" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_k9" bpmnElement="k9">
+        <di:waypoint x="641" y="145" />
+        <di:waypoint x="641" y="440" />
+        <di:waypoint x="766" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_k11" bpmnElement="k11">
+        <di:waypoint x="866" y="440" />
+        <di:waypoint x="1341" y="440" />
+        <di:waypoint x="1341" y="145" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

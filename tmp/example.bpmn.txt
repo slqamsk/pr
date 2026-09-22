@@ -1,0 +1,196 @@
+process: weekend-process
+  name: "Варианты проведения выходных"
+
+  start: start
+    name: "Начало"
+
+  task: t_spend
+    name: "Потратить 20 тыс. рублей"
+    type: user
+
+  task: t_hotel
+    name: "Найти дешёвую гостиницу"
+    type: user
+
+  gateway: and_nature_parallel_split
+    type: parallel
+    name: "Транспорт и природа"
+
+  gateway: xor_transport_choice_split
+    type: exclusive
+    name: "Способ добраться"
+
+  task: t_walk
+    name: "Добираться 3 часа"
+    type: user
+
+  task: t_taxi
+    name: "Потратить 3 тыс. руб. на такси"
+    type: user
+
+  gateway: xor_transport_choice_join
+    type: exclusive
+    name: "Способ добраться"
+
+  task: t_nature
+    name: "Любить природу"
+    type: user
+
+  gateway: and_nature_parallel_join
+    type: parallel
+    name: "Транспорт и природа"
+
+  task: t_friends
+    name: "Иметь хороших друзей"
+    type: user
+
+  task: t_call
+    name: "Обзвонить друзей"
+    type: user
+
+  gateway: and_friends_parallel_split
+    type: parallel
+    name: "Вечеринка и настолки"
+
+  gateway: xor_venue_choice_split
+    type: exclusive
+    name: "Место вечеринки"
+
+  task: t_home
+    name: "Организовать вечеринку дома"
+    type: user
+
+  task: t_find
+    name: "Найти у кого организовать"
+    type: user
+
+  gateway: xor_venue_choice_join
+    type: exclusive
+    name: "Место вечеринки"
+
+  task: t_board
+    name: "Любить настолки"
+    type: user
+
+  gateway: and_friends_parallel_join
+    type: parallel
+    name: "Вечеринка и настолки"
+
+  gateway: xor_choice_weekend_split
+    type: exclusive
+    name: "Варианты проведения выходных"
+
+  gateway: xor_choice_weekend_join
+    type: exclusive
+    name: "Варианты проведения выходных"
+
+  end: end
+    name: "Конец"
+
+  flow: f1
+    from: start
+    to: xor_choice_weekend_split
+
+  flow: f2
+    from: xor_choice_weekend_split
+    to: t_spend
+
+  flow: f3
+    from: xor_choice_weekend_split
+    to: t_hotel
+
+  flow: f4
+    from: xor_choice_weekend_split
+    to: t_friends
+
+  flow: f5
+    from: t_spend
+    to: xor_choice_weekend_join
+
+  flow: f6
+    from: t_hotel
+    to: and_nature_parallel_split
+
+  flow: f7
+    from: and_nature_parallel_split
+    to: xor_transport_choice_split
+
+  flow: f8
+    from: xor_transport_choice_split
+    to: t_walk
+
+  flow: f9
+    from: xor_transport_choice_split
+    to: t_taxi
+
+  flow: f10
+    from: t_walk
+    to: xor_transport_choice_join
+
+  flow: f11
+    from: t_taxi
+    to: xor_transport_choice_join
+
+  flow: f12
+    from: and_nature_parallel_split
+    to: t_nature
+
+  flow: f13
+    from: xor_transport_choice_join
+    to: and_nature_parallel_join
+
+  flow: f14
+    from: t_nature
+    to: and_nature_parallel_join
+
+  flow: f15
+    from: and_nature_parallel_join
+    to: xor_choice_weekend_join
+
+  flow: f16
+    from: t_friends
+    to: t_call
+
+  flow: f17
+    from: t_call
+    to: and_friends_parallel_split
+
+  flow: f18
+    from: and_friends_parallel_split
+    to: xor_venue_choice_split
+
+  flow: f19
+    from: xor_venue_choice_split
+    to: t_home
+
+  flow: f20
+    from: xor_venue_choice_split
+    to: t_find
+
+  flow: f21
+    from: t_home
+    to: xor_venue_choice_join
+
+  flow: f22
+    from: t_find
+    to: xor_venue_choice_join
+
+  flow: f23
+    from: and_friends_parallel_split
+    to: t_board
+
+  flow: f24
+    from: xor_venue_choice_join
+    to: and_friends_parallel_join
+
+  flow: f25
+    from: t_board
+    to: and_friends_parallel_join
+
+  flow: f26
+    from: and_friends_parallel_join
+    to: xor_choice_weekend_join
+
+  flow: f27
+    from: xor_choice_weekend_join
+    to: end

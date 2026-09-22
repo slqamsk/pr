@@ -1,0 +1,73 @@
+{
+  "folder": "E:\\YandexDisk\\slqa\\pr\\files",
+  "archive_subfolder": "archive",
+  "archive_old_subfolder": "old",
+  "tracked_extensions": [
+    ".md",
+    ".json"
+  ],
+  "ignored_extensions": [
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".bmp",
+    ".ico",
+    ".svg",
+    ".exe",
+    ".dll",
+    ".so",
+    ".dylib",
+    ".pyc",
+    ".pyo",
+    ".zip",
+    ".7z",
+    ".rar",
+    ".tar",
+    ".gz",
+    ".pdf",
+    ".doc",
+    ".docx",
+    ".xls",
+    ".xlsx",
+    ".ppt",
+    ".pptx",
+    ".mp3",
+    ".mp4",
+    ".avi",
+    ".mov",
+    ".mkv",
+    ".bin",
+    ".dat",
+    ".pyw"
+  ],
+  "tracked_files": [
+    "00-prompt.md",
+    "01-roles.md",
+    "02-cs.md",
+    "03-sr.md",
+    "04-rp.md",
+    "05-cw.md",
+    "backup_tool_config.json",
+    "health-baseline-2026-09-15.json",
+    "health-baseline-2026-09-15.md",
+    "health-management-and-dashboard-v1.md",
+    "life-management-2026-09-17.md",
+    "personal_context_additional.md",
+    "roles_details.md",
+    "pr-req.md"
+  ],
+  "ignored_files": [
+    "README.md",
+    "roles2.md",
+    "roles3.md",
+    "roles4.md"
+  ],
+  "threshold": 10,
+  "server_upload_log": {},
+  "server": {
+    "user": "slqamsk",
+    "host": "193.37.70.210",
+    "remote_base": "~/Downloads"
+  }
+}
