@@ -30,6 +30,7 @@ DEFAULT_CONFIG = {
     "ignored_files": [],
     "threshold": 10,
     "force_archive_after_days": 7,
+    "binary_meta_extensions": [".xlsx", ".xlsm"],
     "server_upload_log": {},
     "server": {
         "user": "slqamsk",
@@ -97,6 +98,30 @@ def days_between(date_str, today=None):
     if today is None:
         today = datetime.date.today()
     return (today - datetime.date.fromisoformat(date_str)).days
+
+
+# --------------------------------------------------- сравнение по метаданным
+
+def is_binary_meta(cfg, name):
+    """True, если файл сравнивается по метаданным (размер + mtime)."""
+    ext = os.path.splitext(name)[1].lower()
+    lst = [e.lower() for e in cfg.get("binary_meta_extensions", [])]
+    return ext in lst
+
+
+def binary_changed_info(cur_path, arch_path):
+    """Сравнение двух файлов по метаданным (без чтения содержимого).
+    Возвращает (changed, size_cur, size_arch, mtime_cur, mtime_arch)."""
+    size_cur = os.path.getsize(cur_path)
+    size_arch = os.path.getsize(arch_path)
+    mtime_cur = os.path.getmtime(cur_path)
+    mtime_arch = os.path.getmtime(arch_path)
+    changed = (size_cur != size_arch) or (mtime_cur != mtime_arch)
+    return changed, size_cur, size_arch, mtime_cur, mtime_arch
+
+
+def fmt_mtime(ts):
+    return datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
 
 
 # ------------------------------------------------------------------- архивы
@@ -414,6 +439,7 @@ class App:
                      datetime.timedelta(days=1)).isoformat()
         threshold = self.cfg["threshold"]
         force_days = self.cfg.get("force_archive_after_days", 7)
+        meta_exts = self.cfg.get("binary_meta_extensions", [])
 
         log("=== {} ===".format(
             "Архивировать все изменённые" if force_all else "Архивирование"))
@@ -425,13 +451,15 @@ class App:
             log("Порог изменений:    {} непустых строк".format(threshold))
             log("Порог дней:         {} (архивировать при любых изменениях, "
                 "если прошло ≥ N дней)".format(force_days))
+        log("Метаданные для:     {}".format(
+            ", ".join(meta_exts) if meta_exts else "—"))
         log("Суффикс даты:       {}".format(yesterday))
         log("")
 
-        archived = []   # (name, changes, target_name, reason)
-        already = []    # (name, changes, target_name)
+        archived = []   # (name, target_name, info)
+        already = []    # (name, target_name, info)
         below = []      # (name, changes, arch_date, days)
-        unchanged = []  # (name, arch_date)
+        unchanged = []  # (name, arch_date, info)
         missing = []    # (name,)
         errors = []     # (name, msg)
 
@@ -440,17 +468,33 @@ class App:
             if not os.path.isfile(path):
                 missing.append(name); continue
 
-            cur_lines = normalized_lines(path)
-            if cur_lines is None:
-                missing.append(name); continue
+            meta_mode = is_binary_meta(self.cfg, name)
+
+            if not meta_mode:
+                cur_lines = normalized_lines(path)
+                if cur_lines is None:
+                    missing.append(name); continue
 
             arch_path, arch_date = find_newest_archive(self.cfg, name)
 
             if arch_path is None:
-                changes = None
-                days = None
                 need = True
-                reason = "архива нет (первичный бэкап)"
+                if meta_mode:
+                    info = "архива нет (первичный бэкап, метаданные)"
+                else:
+                    info = "архива нет (первичный бэкап)"
+            elif meta_mode:
+                changed, sz_cur, sz_arch, mt_cur, mt_arch = \
+                    binary_changed_info(path, arch_path)
+                if not changed:
+                    unchanged.append((name, arch_date,
+                                      "по метаданным без изменений"))
+                    continue
+                need = True
+                info = ("изменён по метаданным "
+                        "(размер {} → {}, mtime {} → {})".format(
+                            sz_arch, sz_cur,
+                            fmt_mtime(mt_arch), fmt_mtime(mt_cur)))
             else:
                 old_lines = normalized_lines(arch_path)
                 if old_lines is None:
@@ -459,7 +503,9 @@ class App:
                 days = days_between(arch_date)
 
                 if changes == 0:
-                    unchanged.append((name, arch_date)); continue
+                    unchanged.append((name, arch_date,
+                                      "только пустые строки / пробелы"))
+                    continue
 
                 if force_all:
                     need = True
@@ -475,42 +521,36 @@ class App:
                 else:
                     need = False
 
-            if not need:
-                below.append((name, changes, arch_date, days))
-                continue
+                if not need:
+                    below.append((name, changes, arch_date, days))
+                    continue
+
+                info = "изменений {}, {}".format(changes, reason)
 
             base, ext = os.path.splitext(name)
             target_name = "{}-{}{}".format(base, yesterday, ext)
             target = os.path.join(adir, target_name)
             if os.path.exists(target):
-                already.append((name, changes, target_name))
+                already.append((name, target_name, info))
                 continue
             try:
                 shutil.copy2(path, target)
-                archived.append((name, changes, target_name, reason))
+                archived.append((name, target_name, info))
             except Exception as e:
                 errors.append((name, str(e)))
 
         # ---- Отчёт ----
 
         log("=== [1] Заархивировано: {} ===".format(len(archived)))
-        for name, changes, target_name, reason in archived:
-            if changes is None:
-                log("  [+] {}   ({})".format(target_name, reason))
-            else:
-                log("  [+] {}   (изменений {}, {})".format(
-                    target_name, changes, reason))
+        for _name, target_name, info in archived:
+            log("  [+] {}   ({})".format(target_name, info))
         log()
 
         log("=== [2] Сильно изменены, но архив с датой {} уже есть — "
             "пропуск: {} ===".format(yesterday, len(already)))
-        for name, changes, target_name in already:
-            if changes is None:
-                log("  [=] {}   (архив {} уже существует)".format(
-                    name, target_name))
-            else:
-                log("  [=] {}   (изменений {}, архив {} уже существует)".format(
-                    name, changes, target_name))
+        for name, target_name, info in already:
+            log("  [=] {}   ({}, архив {} уже существует)".format(
+                name, info, target_name))
         log()
 
         log("=== [3] Изменения ниже порога — пропуск: {} ===".format(len(below)))
@@ -522,9 +562,8 @@ class App:
         log()
 
         log("=== [4] Без значимых изменений: {} ===".format(len(unchanged)))
-        for name, arch_date in unchanged:
-            log("  [.] {}   (только пустые строки / пробелы, "
-                "свежий архив {})".format(name, arch_date))
+        for name, arch_date, info in unchanged:
+            log("  [.] {}   ({}, свежий архив {})".format(name, info, arch_date))
         log()
 
         if missing:

@@ -1,0 +1,51 @@
+{
+  "folder": "E:\\YandexDisk\\slqa\\pr\\files",
+  "archive_subfolder": "archive",
+  "archive_old_subfolder": "old",
+  "tracked_extensions": [
+    ".json",
+    ".md",
+    ".xlsx"
+  ],
+  "ignored_extensions": [
+    ".pyw"
+  ],
+  "tracked_files": [
+    "01-prompt.md",
+    "02-main.md",
+    "03-regular.md",
+    "pr-dashboard.xlsx"
+  ],
+  "ignored_files": [
+    "02-cs.md",
+    "03-sr.md",
+    "04-jls.md",
+    "04-rp.md",
+    "README.md",
+    "backup_tool.pyw",
+    "backup_tool_config.json",
+    "backup_tool_readme.md",
+    "health-baseline-2026-09-15.json",
+    "health-baseline-2026-09-15.md",
+    "health-management-and-dashboard-v1.md",
+    "life-management-2026-09-17.md",
+    "personal_context_additional.md",
+    "pr-req.md",
+    "roles2.md",
+    "roles3.md",
+    "roles4.md",
+    "roles_details.md"
+  ],
+  "threshold": 10,
+  "force_archive_after_days": 7,
+  "binary_meta_extensions": [
+    ".xlsx",
+    ".xlsm"
+  ],
+  "server_upload_log": {},
+  "server": {
+    "user": "slqamsk",
+    "host": "193.37.70.210",
+    "remote_base": "~/Downloads"
+  }
+}
