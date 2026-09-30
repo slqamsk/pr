@@ -8,13 +8,14 @@
     ".xlsx"
   ],
   "ignored_extensions": [
-    ".pyw"
+    ".pyw",
+    ".py"
   ],
   "tracked_files": [
     "01-prompt.md",
     "02-main.md",
     "03-regular.md",
-    "pr-dashboard.xlsx"
+    "pr-dashboard.xlsx.json"
   ],
   "ignored_files": [
     "02-cs.md",
@@ -34,7 +35,13 @@
     "roles2.md",
     "roles3.md",
     "roles4.md",
-    "roles_details.md"
+    "roles_details.md",
+    "xlsx2json.json",
+    "xlsx2json.state.json",
+    "pr-dashboard.json",
+    "pr-dashboard.xlsx",
+    "xlsx2json.config.json",
+    "xlsx2json.log.md"
   ],
   "threshold": 10,
   "force_archive_after_days": 7,

@@ -1,0 +1,8 @@
+{
+  "watch_folder": "E:\\YandexDisk\\slqa\\pr\\files",
+  "poll_interval_sec": 2,
+  "quiet_period_sec": 1,
+  "min_export_interval_sec": 1,
+  "scp_server": "slqamsk@193.37.70.210",
+  "scp_remote_base": "~/Downloads/"
+}
