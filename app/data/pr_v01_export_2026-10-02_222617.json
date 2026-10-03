@@ -1,0 +1,242 @@
+{
+  "meta": {
+    "exported_at": "2026-10-02T22:28:54",
+    "schema_version": 1,
+    "app_name": "pr_v01",
+    "db_path": "E:\\YandexDisk\\slqa\\pr\\app\\data\\pr_v01.db",
+    "table_counts": {
+      "roles": 7,
+      "subroles": 1,
+      "macro_sprints": 1,
+      "sprints": 1,
+      "epics": 1,
+      "tasks": 1,
+      "actions": 2,
+      "statuses": 4,
+      "action_statuses": 5,
+      "p1_levels": 5,
+      "settings": 8
+    }
+  },
+  "tables": {
+    "roles": [
+      {
+        "id": 1,
+        "name": "Управляющий жизнью"
+      },
+      {
+        "id": 2,
+        "name": "Управляющий здоровьем"
+      },
+      {
+        "id": 3,
+        "name": "Финансовый обеспечитель"
+      },
+      {
+        "id": 4,
+        "name": "Ведущий хозяйство"
+      },
+      {
+        "id": 5,
+        "name": "Творец / Создатель"
+      },
+      {
+        "id": 6,
+        "name": "Сын"
+      },
+      {
+        "id": 7,
+        "name": "Муж и отец"
+      }
+    ],
+    "subroles": [
+      {
+        "id": 1,
+        "role_id": 3,
+        "name": "Преподаватель УЦ"
+      }
+    ],
+    "macro_sprints": [
+      {
+        "id": 1,
+        "code": "MS-02",
+        "start_date": "2026-10-05",
+        "end_date": "2026-10-11",
+        "goal": "sdfgsdfg",
+        "status_id": 2,
+        "priority": null
+      }
+    ],
+    "sprints": [
+      {
+        "id": 1,
+        "code": "S-02-01",
+        "start_date": "2026-10-06",
+        "end_date": "2026-10-06",
+        "goal": "asdfasdf",
+        "status_id": 2,
+        "macro_sprint_id": 1
+      }
+    ],
+    "epics": [
+      {
+        "id": 1,
+        "name": "фывфыва",
+        "goal": "фыв фыва фыв ыфвфыва",
+        "role_id": 3,
+        "subrole_id": 1,
+        "deadline": "2026-10-16",
+        "status_id": 2,
+        "macro_sprint_id": 1,
+        "comment": "фыва фыва фыва ыфва",
+        "priority": null
+      }
+    ],
+    "tasks": [
+      {
+        "id": 1,
+        "name": "фывафывыпаывап фыва",
+        "description": "фыва фыва фыва фыва фыва фыва ",
+        "epic_id": 1,
+        "role_id": 3,
+        "subrole_id": 1,
+        "p1": "A",
+        "p2": 1,
+        "deadline": "2026-10-13",
+        "pp": 1.0,
+        "status_id": 2,
+        "macro_sprint_id": 1,
+        "sprint_id": 1,
+        "comment": "фыва фывафыва ыфва "
+      }
+    ],
+    "actions": [
+      {
+        "id": 1,
+        "name": "ыфвафыва ыфва фыв",
+        "description": "фыва фыва ыфв",
+        "date": "2026-10-02",
+        "pp": 1.0,
+        "start_time": "22:05",
+        "end_time": "15:00",
+        "duration": null,
+        "task_id": 1,
+        "epic_id": 1,
+        "role_id": 3,
+        "subrole_id": 1,
+        "status_id": 1
+      },
+      {
+        "id": 2,
+        "name": "Выполнение задачи фывафывыпаывап фыва",
+        "description": null,
+        "date": "2026-10-02",
+        "pp": null,
+        "start_time": "22:04",
+        "end_time": "22:05",
+        "duration": null,
+        "task_id": 1,
+        "epic_id": 1,
+        "role_id": 3,
+        "subrole_id": 1,
+        "status_id": 2
+      }
+    ],
+    "statuses": [
+      {
+        "id": 1,
+        "name": "Backlog"
+      },
+      {
+        "id": 2,
+        "name": "Active"
+      },
+      {
+        "id": 3,
+        "name": "Passed"
+      },
+      {
+        "id": 4,
+        "name": "Failed"
+      }
+    ],
+    "action_statuses": [
+      {
+        "id": 1,
+        "name": "В работе"
+      },
+      {
+        "id": 2,
+        "name": "Начал задачу"
+      },
+      {
+        "id": 3,
+        "name": "Продолжил задачу"
+      },
+      {
+        "id": 4,
+        "name": "Завершил задачу"
+      },
+      {
+        "id": 5,
+        "name": "Без задачи"
+      }
+    ],
+    "p1_levels": [
+      {
+        "id": 1,
+        "name": "A"
+      },
+      {
+        "id": 2,
+        "name": "B"
+      },
+      {
+        "id": 3,
+        "name": "C"
+      },
+      {
+        "id": 4,
+        "name": "D"
+      },
+      {
+        "id": 5,
+        "name": "E"
+      }
+    ],
+    "settings": [
+      {
+        "key": "action_statuses.initialized",
+        "value": "1"
+      },
+      {
+        "key": "p1_levels.initialized",
+        "value": "1"
+      },
+      {
+        "key": "pomodoro.per_day",
+        "value": "8.0"
+      },
+      {
+        "key": "roles.initialized",
+        "value": "1"
+      },
+      {
+        "key": "statuses.initialized",
+        "value": "1"
+      },
+      {
+        "key": "ui.columns.actions",
+        "value": "{\"date\": 90, \"start_time\": 60, \"end_time\": 60, \"duration\": 50, \"pp\": 50, \"name\": 65, \"description\": 340, \"task_name\": 180, \"epic_name\": 140, \"role_name\": 150, \"subrole_name\": 150, \"status_name\": 120}"
+      },
+      {
+        "key": "ui.columns.epics",
+        "value": "{\"name\": 200, \"goal\": 280, \"role_name\": 258, \"subrole_name\": 150, \"deadline\": 100, \"status_name\": 90, \"macro_code\": 90, \"comment\": 240, \"priority\": 50}"
+      },
+      {
+        "key": "ui.columns.tasks",
+        "value": "{\"pf\": 70, \"name\": 47, \"epic_name\": 160, \"role_name\": 150, \"subrole_name\": 150, \"deadline\": 100, \"p1\": 50, \"p2\": 50, \"pp\": 50, \"status_name\": 90, \"macro_code\": 90, \"sprint_code\": 90, \"comment\": 220}"
+      }
+    ]
+  }
+}

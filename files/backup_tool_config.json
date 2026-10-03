@@ -15,7 +15,8 @@
     "01-prompt.md",
     "02-main.md",
     "03-regular.md",
-    "pr-dashboard.xlsx.json"
+    "pr-dashboard.xlsx.json",
+    "00-inbox.md"
   ],
   "ignored_files": [
     "02-cs.md",
@@ -49,7 +50,13 @@
     ".xlsx",
     ".xlsm"
   ],
-  "server_upload_log": {},
+  "server_upload_log": {
+    "01-prompt.md": "2026-10-02",
+    "02-main.md": "2026-10-02",
+    "03-regular.md": "2026-10-02",
+    "pr-dashboard.xlsx.json": "2026-10-02",
+    "00-inbox.md": "2026-10-02"
+  },
   "server": {
     "user": "slqamsk",
     "host": "193.37.70.210",

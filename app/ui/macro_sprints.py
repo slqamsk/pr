@@ -1,0 +1,350 @@
+"""Вкладка работы с макро-спринтами."""
+import tkinter as tk
+from tkinter import ttk, messagebox
+import sqlite3
+from datetime import datetime
+
+from db import db
+from ui.widgets import CalendarPopup, ScrollableTable, ask_unsaved_changes
+
+COLUMNS = [
+    {"key": "code",        "title": "Code",   "width": 90,  "wrap": False},
+    {"key": "start_date",  "title": "Start",  "width": 100, "wrap": False},
+    {"key": "end_date",    "title": "End",    "width": 100, "wrap": False},
+    {"key": "goal",        "title": "Goal",   "width": 420, "wrap": True},
+    {"key": "status_name", "title": "Status", "width": 90,  "wrap": False},
+    {"key": "priority",    "title": "P",      "width": 60,  "wrap": False},
+]
+
+
+def _to_iso(s: str) -> str:
+    return datetime.strptime(s.strip(), "%d.%m.%Y").strftime("%Y-%m-%d")
+
+
+def _to_ru(iso: str) -> str:
+    return datetime.strptime(iso, "%Y-%m-%d").strftime("%d.%m.%Y")
+
+
+class MacroSprintsTab(ttk.Frame):
+    def __init__(self, parent):
+        super().__init__(parent, padding=8)
+        self.current_id: int | None = None
+        self._raw_by_id: dict[int, dict] = {}
+        self._snapshot: dict | None = None
+
+        self._statuses: list[dict] = []
+        self._status_by_name: dict[str, int] = {}
+        self._status_by_id: dict[int, str] = {}
+
+        self._build_ui()
+        self.refresh()
+        self._set_snapshot()
+
+    # ---------- UI ----------
+    def _build_ui(self):
+        self._statuses = db.list_statuses()
+        self._status_by_name = {s["name"]: s["id"] for s in self._statuses}
+        self._status_by_id = {s["id"]: s["name"] for s in self._statuses}
+
+        self.table = ScrollableTable(self, COLUMNS, on_select=self._on_table_select,
+                                     settings_key="ui.columns.macro_sprints")
+        self.table.pack(fill="both", expand=True)
+
+        form = ttk.LabelFrame(self, text="Запись", padding=8)
+        form.pack(fill="x", pady=(8, 0))
+        form.columnconfigure(1, weight=1)
+
+        self.var_code     = tk.StringVar()
+        self.var_start    = tk.StringVar()
+        self.var_end      = tk.StringVar()
+        self.var_status   = tk.StringVar()
+        self.var_priority = tk.StringVar()
+
+        r = 0
+        ttk.Label(form, text="Code").grid(row=r, column=0, sticky="w", padx=(0, 8), pady=2)
+        ttk.Entry(form, textvariable=self.var_code, width=14)\
+            .grid(row=r, column=1, sticky="w", pady=2)
+
+        r += 1
+        ttk.Label(form, text="Start").grid(row=r, column=0, sticky="w", padx=(0, 8), pady=2)
+        f_start = ttk.Frame(form)
+        f_start.grid(row=r, column=1, sticky="w", pady=2)
+        ttk.Entry(f_start, textvariable=self.var_start, width=14).pack(side="left")
+        ttk.Button(f_start, text="📅", width=3,
+                   command=lambda: self._open_cal(self.var_start)).pack(side="left", padx=(4, 0))
+
+        r += 1
+        ttk.Label(form, text="End").grid(row=r, column=0, sticky="w", padx=(0, 8), pady=2)
+        f_end = ttk.Frame(form)
+        f_end.grid(row=r, column=1, sticky="w", pady=2)
+        ttk.Entry(f_end, textvariable=self.var_end, width=14).pack(side="left")
+        ttk.Button(f_end, text="📅", width=3,
+                   command=lambda: self._open_cal(self.var_end)).pack(side="left", padx=(4, 0))
+
+        r += 1
+        ttk.Label(form, text="Goal").grid(row=r, column=0, sticky="nw", padx=(0, 8), pady=2)
+        goal_wrap = ttk.Frame(form)
+        goal_wrap.grid(row=r, column=1, sticky="ew", pady=2)
+        goal_wrap.columnconfigure(0, weight=1)
+        self.txt_goal = tk.Text(goal_wrap, height=3, wrap="word",
+                                font=("TkDefaultFont", 9), undo=True)
+        self.txt_goal.grid(row=0, column=0, sticky="ew")
+        goal_sb = ttk.Scrollbar(goal_wrap, orient="vertical", command=self.txt_goal.yview)
+        self.txt_goal.configure(yscrollcommand=goal_sb.set)
+        goal_sb.grid(row=0, column=1, sticky="ns")
+
+        r += 1
+        ttk.Label(form, text="Status").grid(row=r, column=0, sticky="w", padx=(0, 8), pady=2)
+        ttk.Combobox(form, textvariable=self.var_status,
+                     values=[s["name"] for s in self._statuses],
+                     state="readonly", width=12)\
+            .grid(row=r, column=1, sticky="w", pady=2)
+
+        r += 1
+        ttk.Label(form, text="P").grid(row=r, column=0, sticky="w", padx=(0, 8), pady=2)
+        ttk.Entry(form, textvariable=self.var_priority, width=6)\
+            .grid(row=r, column=1, sticky="w", pady=2)
+
+        btns = ttk.Frame(self, padding=(0, 8, 0, 0))
+        btns.pack(fill="x")
+        ttk.Button(btns, text="Новая",     command=self._new).pack(side="left")
+        ttk.Button(btns, text="Сохранить", command=self._on_save_clicked).pack(side="left", padx=6)
+        ttk.Button(btns, text="Удалить",   command=self._delete).pack(side="left")
+        ttk.Button(btns, text="Обновить",  command=self._on_refresh_clicked).pack(side="right")
+
+    # ---------- снимок ----------
+    def _form_state(self) -> dict:
+        return {
+            "code":     self.var_code.get().strip(),
+            "start":    self.var_start.get().strip(),
+            "end":      self.var_end.get().strip(),
+            "goal":     self._get_goal(),
+            "status":   self.var_status.get(),
+            "priority": self.var_priority.get().strip(),
+        }
+
+    def _set_snapshot(self):
+        self._snapshot = self._form_state()
+
+    def _is_dirty(self) -> bool:
+        if self._snapshot is None:
+            return False
+        return self._form_state() != self._snapshot
+
+    def has_unsaved(self) -> bool:
+        return self._is_dirty()
+
+    def confirm_leave(self) -> bool:
+        if not self._is_dirty():
+            return True
+        action = ask_unsaved_changes(parent=self.winfo_toplevel())
+        if action == "cancel":
+            return False
+        if action == "save":
+            return self._save()
+        return True
+
+    # ---------- данные ----------
+    def refresh(self):
+        raw = db.list_macro_sprints()
+        self._raw_by_id = {r["id"]: r for r in raw}
+        display = [{
+            "id":          r["id"],
+            "code":        r["code"],
+            "start_date":  _to_ru(r["start_date"]),
+            "end_date":    _to_ru(r["end_date"]),
+            "goal":        r["goal"],
+            "status_name": r["status_name"],
+            "priority":    "" if r["priority"] is None else r["priority"],
+        } for r in raw]
+        self.table.set_rows(display, iid_key="id")
+        if self.current_id is not None:
+            self.table.select_iid(str(self.current_id))
+
+    def _load_into_form(self, sid: int):
+        self.current_id = sid
+        src = self._raw_by_id.get(sid)
+        if not src:
+            return
+        self.var_code.set(src["code"])
+        self.var_start.set(_to_ru(src["start_date"]))
+        self.var_end.set(_to_ru(src["end_date"]))
+        self.var_status.set(src["status_name"])
+        self.var_priority.set("" if src["priority"] is None else str(src["priority"]))
+        self._set_goal(src["goal"])
+        self._set_snapshot()
+        self.table.select_iid(str(sid))
+
+    def _set_goal(self, text):
+        self.txt_goal.delete("1.0", "end")
+        self.txt_goal.insert("1.0", text or "")
+
+    def _get_goal(self):
+        return self.txt_goal.get("1.0", "end-1c").strip()
+
+    def _clear_form(self):
+        self.current_id = None
+        self.var_code.set("")
+        self.var_start.set("")
+        self.var_end.set("")
+        self.var_status.set(self._statuses[0]["name"] if self._statuses else "")
+        self.var_priority.set("")
+        self._set_goal("")
+        self.table.clear_selection()
+        self._set_snapshot()
+
+    # ---------- выбор в таблице ----------
+    def _on_table_select(self, data):
+        new_id = data["id"]
+        if new_id == self.current_id:
+            return
+        if self._is_dirty():
+            action = ask_unsaved_changes(parent=self.winfo_toplevel())
+            if action == "cancel":
+                self._restore_selection()
+                return
+            if action == "save":
+                if not self._save():
+                    self._restore_selection()
+                    return
+        self._load_into_form(new_id)
+
+    def _restore_selection(self):
+        if self.current_id is None:
+            self.table.clear_selection()
+        else:
+            self.table.select_iid(str(self.current_id))
+
+    # ---------- кнопки ----------
+    def _new(self):
+        if self._is_dirty():
+            action = ask_unsaved_changes(parent=self.winfo_toplevel())
+            if action == "cancel":
+                return
+            if action == "save":
+                if not self._save():
+                    return
+        self._clear_form()
+
+    def _on_save_clicked(self):
+        self._save()
+
+    def _save(self) -> bool:
+        code = self.var_code.get().strip()
+        if not code:
+            messagebox.showwarning("Валидация", "Code не может быть пустым.",
+                                   parent=self.winfo_toplevel())
+            return False
+        try:
+            start = _to_iso(self.var_start.get())
+            end   = _to_iso(self.var_end.get())
+        except ValueError:
+            messagebox.showwarning("Валидация",
+                                   "Даты должны быть в формате ДД.ММ.ГГГГ.",
+                                   parent=self.winfo_toplevel())
+            return False
+        if end < start:
+            if not messagebox.askyesno("Валидация",
+                                       "End раньше Start. Всё равно сохранить?",
+                                       parent=self.winfo_toplevel()):
+                return False
+
+        status_name = self.var_status.get()
+        status_id = self._status_by_name.get(status_name)
+        if status_id is None:
+            messagebox.showwarning("Валидация", "Выберите статус.",
+                                   parent=self.winfo_toplevel())
+            return False
+
+        pr_text = self.var_priority.get().strip()
+        if pr_text == "":
+            priority = None
+        else:
+            try:
+                priority = int(pr_text)
+            except ValueError:
+                messagebox.showwarning("Валидация", "P должно быть целым числом.",
+                                       parent=self.winfo_toplevel())
+                return False
+
+        goal = self._get_goal()
+
+        try:
+            if self.current_id is None:
+                new_id = db.insert_macro_sprint(code, start, end, goal,
+                                                status_id, priority)
+                self.current_id = new_id
+            else:
+                db.update_macro_sprint(self.current_id, code, start, end,
+                                       goal, status_id, priority)
+        except sqlite3.IntegrityError:
+            messagebox.showwarning("Валидация", f"Code '{code}' уже существует.",
+                                   parent=self.winfo_toplevel())
+            return False
+
+        self._set_snapshot()
+        self.refresh()
+        if self.current_id is not None:
+            self.table.select_iid(str(self.current_id))
+        return True
+
+    def _delete(self):
+        if self.current_id is None:
+            messagebox.showinfo("Удаление", "Выбери запись из списка.",
+                                parent=self.winfo_toplevel())
+            return
+        code = self.var_code.get().strip()
+
+        n_spr   = db.count_sprints_using_macro(self.current_id)
+        n_epi   = db.count_epics_using_macro(self.current_id)
+        n_tasks = db.count_tasks_using_macro(self.current_id)
+        if n_spr > 0 or n_epi > 0 or n_tasks > 0:
+            messagebox.showwarning(
+                "Удаление запрещено",
+                f"Макро-спринт «{code}» используется:\n"
+                f"  спринтов — {n_spr}\n"
+                f"  эпиков   — {n_epi}\n"
+                f"  задач    — {n_tasks}\n\n"
+                "Сначала отвяжите или удалите зависимые записи.",
+                parent=self.winfo_toplevel(),
+            )
+            return
+
+        if not messagebox.askyesno("Удаление", f"Удалить {code}?",
+                                   parent=self.winfo_toplevel()):
+            return
+
+        try:
+            db.delete_macro_sprint(self.current_id)
+        except sqlite3.IntegrityError:
+            messagebox.showwarning("Удаление запрещено",
+                                   f"Макро-спринт «{code}» используется.",
+                                   parent=self.winfo_toplevel())
+            return
+
+        self._clear_form()
+        self.refresh()
+
+    def _on_refresh_clicked(self):
+        if self._is_dirty():
+            action = ask_unsaved_changes(parent=self.winfo_toplevel())
+            if action == "cancel":
+                return
+            if action == "save":
+                if not self._save():
+                    return
+        self.refresh()
+
+    # ---------- календарь ----------
+    def _open_cal(self, var: tk.StringVar):
+        initial = None
+        try:
+            initial = datetime.strptime(var.get().strip(), "%d.%m.%Y").date()
+        except (ValueError, AttributeError):
+            pass
+        popup = CalendarPopup(
+            self,
+            initial=initial,
+            on_pick=lambda d: var.set(d.strftime("%d.%m.%Y")),
+        )
+        popup.geometry(f"+{self.winfo_pointerx()}+{self.winfo_pointery()}")
