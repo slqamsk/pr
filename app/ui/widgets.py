@@ -1,4 +1,4 @@
-"""Переиспользуемые виджеты: календарь-попап, таблица, диалог сохранения."""
+"""Переиспользуемые виджеты: календарь-попап, таблица, диалог сохранения, SQL-фильтр."""
 import calendar
 import json
 import tkinter as tk
@@ -9,7 +9,6 @@ from db import db
 
 
 def ask_unsaved_changes(parent=None) -> str:
-    """Возвращает 'save' | 'discard' | 'cancel'."""
     ans = messagebox.askyesnocancel(
         "Несохранённые изменения",
         "В текущей записи есть несохранённые изменения.\n\n"
@@ -24,8 +23,31 @@ def ask_unsaved_changes(parent=None) -> str:
     return "save" if ans else "discard"
 
 
+def bind_mousewheel_recursive(widget, canvas):
+    """Рекурсивно привязывает колёсико мыши на виджет и всех его детей."""
+    def _on_wheel(event):
+        # delta обычно 120 на «щелчок». Отрицательный delta = вниз.
+        try:
+            step = -1 * int(event.delta / 120) or (-1 if event.delta > 0 else 1)
+        except (ValueError, AttributeError):
+            step = -1 if event.delta > 0 else 1
+        canvas.yview_scroll(step * 3, "units")
+        return "break"
+
+    def _bind(w):
+        try:
+            w.bind("<MouseWheel>", _on_wheel)
+        except tk.TclError:
+            return
+        for child in w.winfo_children():
+            _bind(child)
+
+    _bind(widget)
+
+
+# ============== CalendarPopup ==============
+
 class CalendarPopup(tk.Toplevel):
-    """Всплывающий календарь. При выборе даты вызывает on_pick(date)."""
     _active = None
 
     def __init__(self, master, initial=None, on_pick=None, position=None):
@@ -165,18 +187,9 @@ class CalendarPopup(tk.Toplevel):
             cb(d)
 
 
+# ============== ScrollableTable ==============
+
 class ScrollableTable(ttk.Frame):
-    """
-    Таблица с фиксированной шириной колонок:
-      * ширина колонки одинакова для всех строк,
-      * длинный текст переносится (word wrap),
-      * все ячейки строки растягиваются до высоты самой высокой ячейки,
-      * ресайз колонок мышью (остальные не двигаются),
-      * ширины колонок сохраняются между запусками (settings_key),
-      * вертикальный и горизонтальный скролл,
-      * чёрные границы между всеми ячейками,
-      * подсветка выбранной строки.
-    """
     BG_NORM  = "#ffffff"
     BG_SEL   = "#cce6ff"
     BG_HEAD  = "#e6e6e6"
@@ -350,12 +363,13 @@ class ScrollableTable(ttk.Frame):
             self._add_row(data, iid_key)
         self.update_idletasks()
         self._update_scrollregion()
+        # после пересборки — переподключаем колёсико ко всем строкам
+        bind_mousewheel_recursive(self.body, self.body_canvas)
 
     def clear_selection(self):
         self._paint_selected(None)
 
     def select_iid(self, iid):
-        """Программно подсветить строку. on_select НЕ вызывается."""
         if iid is None:
             self._paint_selected(None)
             return
@@ -394,11 +408,9 @@ class ScrollableTable(ttk.Frame):
         self._layout_row(row)
 
     def _layout_row(self, row):
-        """Раскладывает ячейки по фиксированным X/ширинам и выравнивает их высоту."""
         frame = row["frame"]
         cells = row["cells"]
 
-        # 1. Первичная раскладка: только X и ширина. Высота — натуральная.
         x = 0
         for col in self.columns:
             key = col["key"]
@@ -409,13 +421,11 @@ class ScrollableTable(ttk.Frame):
             lbl.place(x=x, y=0, width=w)
             x += w
 
-        # 2. Натуральные высоты после переноса текста.
         frame.update_idletasks()
         h = 1
         for col in self.columns:
             h = max(h, cells[col["key"]].winfo_reqheight())
 
-        # 3. Выравниваем все ячейки строки по максимальной высоте.
         x = 0
         for col in self.columns:
             key = col["key"]
@@ -440,11 +450,9 @@ class ScrollableTable(ttk.Frame):
         self._selected = iid
 
 
+# ============== EditableCriteriaList ==============
+
 class EditableCriteriaList(ttk.Frame):
-    """
-    Редактируемый список критериев достижения.
-    Строки: N | Текст | Статус | Комментарий | ✕
-    """
     def __init__(self, parent, statuses, on_change=None, height=120):
         super().__init__(parent)
         self._statuses = list(statuses)
@@ -483,9 +491,7 @@ class EditableCriteriaList(ttk.Frame):
                          lambda e: self.canvas.itemconfigure(self._window,
                                                              width=e.width))
 
-    # ---------- public API ----------
-    def set_items(self, items: list[dict]):
-        """Программно устанавливает список. Не считается изменением."""
+    def set_items(self, items):
         self._loading = True
         try:
             for r in self._rows:
@@ -500,9 +506,9 @@ class EditableCriteriaList(ttk.Frame):
                 )
         finally:
             self._loading = False
+        bind_mousewheel_recursive(self.rows_frame, self.canvas)
 
-    def get_items(self) -> list[dict]:
-        """Возвращает список критериев, отсортированный по (n, порядок ввода)."""
+    def get_items(self):
         result = []
         for i, r in enumerate(self._rows):
             n_text = r["n_var"].get().strip()
@@ -534,6 +540,7 @@ class EditableCriteriaList(ttk.Frame):
                 pass
         n = (max(current) + 1) if current else 1
         self._add_row_internal(n=n, text="", status_name="", comment="")
+        bind_mousewheel_recursive(self.rows_frame, self.canvas)
         self._notify_change()
 
     def clear(self):
@@ -549,9 +556,8 @@ class EditableCriteriaList(ttk.Frame):
             r["comment_entry"].configure(state=state)
             r["del_btn"].configure(state=state)
 
-    # ---------- internals ----------
     def _add_row_internal(self, n, text, status_name, comment):
-        row: dict = {}
+        row = {}
         frame = ttk.Frame(self.rows_frame)
         frame.pack(fill="x", pady=1)
 
@@ -604,7 +610,6 @@ class EditableCriteriaList(ttk.Frame):
         self._notify_change()
 
     def _resort(self):
-        """Пересортировывает строки по N (стабильно, при равенстве — по порядку ввода)."""
         if self._loading:
             return
         def key_func(r):
@@ -625,3 +630,205 @@ class EditableCriteriaList(ttk.Frame):
             return
         if self._on_change:
             self._on_change()
+
+
+# ============== SqlFilterDialog ==============
+
+_FORBIDDEN_IN_WHERE = ("ORDER", "GROUP", "HAVING", "UNION", "LIMIT", "OFFSET")
+_FORBIDDEN_IN_ORDER = ("WHERE", "GROUP", "HAVING", "UNION", "LIMIT", "OFFSET")
+
+
+def validate_where_clause(text: str) -> str | None:
+    text = (text or "").strip()
+    if not text:
+        return None
+    if ";" in text:
+        return "WHERE не должен содержать ';'"
+    tokens = text.split()
+    if not tokens or tokens[0].upper() != "WHERE":
+        return "WHERE должен начинаться со слова WHERE"
+    for tok in tokens[1:]:
+        if tok.upper() in _FORBIDDEN_IN_WHERE:
+            return f"WHERE не должен содержать '{tok}'"
+    return None
+
+
+def validate_order_by_clause(text: str) -> str | None:
+    text = (text or "").strip()
+    if not text:
+        return None
+    if ";" in text:
+        return "ORDER BY не должен содержать ';'"
+    tokens = text.split()
+    if len(tokens) < 2:
+        return "ORDER BY должен начинаться со слов 'ORDER BY'"
+    if tokens[0].upper() != "ORDER" or tokens[1].upper() != "BY":
+        return "ORDER BY должен начинаться со слов 'ORDER BY'"
+    for tok in tokens[2:]:
+        if tok.upper() in _FORBIDDEN_IN_ORDER:
+            return f"ORDER BY не должен содержать '{tok}'"
+    return None
+
+
+class SqlFilterDialog(tk.Toplevel):
+    def __init__(self, parent, base_sql: str, where_text: str, order_by_text: str,
+                 default_order_by: str, validate_sql, on_apply):
+        super().__init__(parent)
+        self.title("SQL-фильтр")
+        self.transient(parent)
+        self.grab_set()
+        self.resizable(True, True)
+
+        self._base_sql        = base_sql
+        self._default_order   = default_order_by or ""
+        self._validate_sql    = validate_sql
+        self._on_apply_cb     = on_apply
+
+        self._last_checked_where = None
+        self._last_checked_order = None
+
+        self._build_ui(where_text or "", order_by_text or "")
+
+        # размер и позиция
+        self.update_idletasks()
+        w = 900
+        h = 720
+        self.geometry(f"{w}x{h}")
+        px = parent.winfo_rootx() + (parent.winfo_width()  - w) // 2
+        py = parent.winfo_rooty() + (parent.winfo_height() - h) // 2
+        self.geometry(f"+{max(0, px)}+{max(0, py)}")
+
+        self.protocol("WM_DELETE_WINDOW", self.destroy)
+
+    # ---------------- UI ----------------
+    def _build_ui(self, where_text, order_by_text):
+        pad = {"padx": 10, "pady": 4}
+
+        ttk.Label(self, text="Базовый запрос (только для чтения):")\
+            .pack(anchor="w", **pad)
+        self.txt_base = tk.Text(self, height=14, wrap="none",
+                                font=("Consolas", 9), bg="#f5f5f5")
+        self.txt_base.pack(fill="x", padx=10)
+        self.txt_base.insert("1.0", self._base_sql)
+        self.txt_base.configure(state="disabled")
+
+        ttk.Label(self, text="WHERE (необязательно). Оставьте пустым — без WHERE:")\
+            .pack(anchor="w", **pad)
+        self.txt_where = tk.Text(self, height=14, wrap="none",
+                                 font=("Consolas", 9), undo=True)
+        self.txt_where.pack(fill="both", expand=True, padx=10)
+        if where_text:
+            self.txt_where.insert("1.0", where_text)
+
+        ttk.Separator(self, orient="horizontal").pack(fill="x", padx=10, pady=6)
+
+        ttk.Label(self, text="ORDER BY (необязательно). Оставьте пустым — без ORDER BY:")\
+            .pack(anchor="w", **pad)
+        self.txt_order = tk.Text(self, height=4, wrap="none",
+                                 font=("Consolas", 9), undo=True)
+        self.txt_order.pack(fill="x", padx=10)
+        if order_by_text:
+            self.txt_order.insert("1.0", order_by_text)
+
+        # статусная строка
+        self.var_status = tk.StringVar(value="")
+        self.lbl_status = tk.Label(self, textvariable=self.var_status,
+                                   anchor="w", padx=10, pady=4)
+        self.lbl_status.pack(fill="x", padx=10, pady=(6, 0))
+
+        # кнопки
+        btns = ttk.Frame(self, padding=(10, 8))
+        btns.pack(fill="x")
+        ttk.Button(btns, text="Проверить", command=self._on_check).pack(side="left")
+        self.btn_apply = ttk.Button(btns, text="Применить", command=self._on_apply,
+                                    state="disabled")
+        self.btn_apply.pack(side="left", padx=(8, 0))
+        ttk.Button(btns, text="Очистить", command=self._on_clear).pack(side="left", padx=(8, 0))
+        ttk.Button(btns, text="Отмена", command=self.destroy).pack(side="right")
+
+        # отслеживание изменений
+        self.txt_where.bind("<KeyRelease>", self._on_field_change)
+        self.txt_order.bind("<KeyRelease>", self._on_field_change)
+
+    # ---------------- helpers ----------------
+    @staticmethod
+    def _get_text(widget: tk.Text) -> str:
+        return widget.get("1.0", "end-1c")
+
+    @staticmethod
+    def _set_text(widget: tk.Text, text: str):
+        widget.delete("1.0", "end")
+        if text:
+            widget.insert("1.0", text)
+
+    def _set_status(self, text: str, error: bool = False):
+        self.var_status.set(text)
+        self.lbl_status.configure(fg=("#a00000" if error else "#404040"))
+
+    def _disable_apply(self):
+        self.btn_apply.configure(state="disabled")
+
+    def _enable_apply(self):
+        self.btn_apply.configure(state="normal")
+
+    def _build_sql(self, where_text: str, order_text: str) -> str:
+        parts = [self._base_sql.rstrip()]
+        if where_text:
+            parts.append(where_text)
+        if order_text:
+            parts.append(order_text)
+        return " ".join(parts)
+
+    # ---------------- events ----------------
+    def _on_field_change(self, _e=None):
+        self._disable_apply()
+        self._set_status("")
+
+    def _on_check(self):
+        where_text = self._get_text(self.txt_where).strip()
+        order_text = self._get_text(self.txt_order).strip()
+
+        err = validate_where_clause(where_text)
+        if err:
+            self._set_status(err, error=True)
+            self._disable_apply()
+            return
+
+        err = validate_order_by_clause(order_text)
+        if err:
+            self._set_status(err, error=True)
+            self._disable_apply()
+            return
+
+        sql = self._build_sql(where_text, order_text)
+
+        try:
+            n = self._validate_sql(sql)
+        except Exception as e:
+            self._set_status(f"Ошибка SQL: {e}", error=True)
+            self._disable_apply()
+            return
+
+        self._set_status(f"Записей найдено: {n}")
+        self._enable_apply()
+        self._last_checked_where = where_text
+        self._last_checked_order = order_text
+
+    def _on_apply(self):
+        where = self._get_text(self.txt_where).strip()
+        order = self._get_text(self.txt_order).strip()
+        # страховка: применяем только то, что было проверено
+        if (where, order) != (self._last_checked_where, self._last_checked_order):
+            return
+        try:
+            self._on_apply_cb(where, order)
+        finally:
+            self.destroy()
+
+    def _on_clear(self):
+        self._set_text(self.txt_where, "")
+        self._set_text(self.txt_order, self._default_order)
+        self._last_checked_where = None
+        self._last_checked_order = None
+        self._disable_apply()
+        self._set_status("")

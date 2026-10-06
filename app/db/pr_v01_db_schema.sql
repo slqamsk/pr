@@ -94,7 +94,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     status_id       INTEGER NOT NULL REFERENCES statuses(id) ON DELETE RESTRICT,
     macro_sprint_id INTEGER NULL REFERENCES macro_sprints(id) ON DELETE RESTRICT,
     sprint_id       INTEGER NULL REFERENCES sprints(id) ON DELETE RESTRICT,
-    comment         TEXT    NULL
+    comment         TEXT    NULL,
+    pf              REAL    NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_tasks_epic    ON tasks(epic_id);
@@ -105,9 +106,6 @@ CREATE INDEX IF NOT EXISTS idx_tasks_macro   ON tasks(macro_sprint_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_sprint  ON tasks(sprint_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_p1      ON tasks(p1);
 CREATE INDEX IF NOT EXISTS idx_tasks_deadline ON tasks(deadline);
-
-
--- ==================== ACTIONS ====================
 
 CREATE TABLE IF NOT EXISTS action_statuses (
     id   INTEGER PRIMARY KEY,
@@ -138,9 +136,6 @@ CREATE INDEX IF NOT EXISTS idx_actions_role     ON actions(role_id);
 CREATE INDEX IF NOT EXISTS idx_actions_subrole  ON actions(subrole_id);
 CREATE INDEX IF NOT EXISTS idx_actions_status   ON actions(status_id);
 CREATE INDEX IF NOT EXISTS idx_actions_date     ON actions(date);
-
-
--- ==================== CRITERIA ====================
 
 CREATE TABLE IF NOT EXISTS criterion_statuses (
     id   INTEGER PRIMARY KEY,

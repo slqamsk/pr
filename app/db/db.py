@@ -377,29 +377,6 @@ def count_tasks_using_epic(eid: int) -> int:
 
 # ------------------- tasks -------------------
 
-def list_tasks() -> list[dict]:
-    with cursor() as con:
-        rows = con.execute(
-            "SELECT t.id, t.name, t.description, "
-            "       t.epic_id, e.name AS epic_name, "
-            "       t.role_id, r.name AS role_name, "
-            "       t.subrole_id, sr.name AS subrole_name, "
-            "       t.p1, t.p2, t.deadline, t.pp, "
-            "       t.status_id, st.name AS status_name, "
-            "       t.macro_sprint_id, m.code AS macro_code, "
-            "       t.sprint_id, sp.code AS sprint_code, "
-            "       t.comment "
-            "FROM tasks t "
-            "LEFT JOIN epics e ON e.id = t.epic_id "
-            "LEFT JOIN roles r ON r.id = t.role_id "
-            "LEFT JOIN subroles sr ON sr.id = t.subrole_id "
-            "JOIN statuses st ON st.id = t.status_id "
-            "LEFT JOIN macro_sprints m ON m.id = t.macro_sprint_id "
-            "LEFT JOIN sprints sp ON sp.id = t.sprint_id "
-        ).fetchall()
-        return [dict(r) for r in rows]
-
-
 def insert_task(name, description, epic_id, role_id, subrole_id,
                 p1, p2, deadline, pp, status_id,
                 macro_sprint_id, sprint_id, comment) -> int:
@@ -613,3 +590,71 @@ def replace_sprint_criteria(sprint_id: int, criteria: list[dict]) -> None:
                 (sprint_id, c["n"], c["text"],
                  c.get("status_id"), c.get("comment")),
             )
+
+
+# ------------------- tasks: pf / вспомогательные -------------------
+
+def list_tasks_pf_data() -> list[dict]:
+    """Минимум полей для пересчёта PF по всем задачам."""
+    with cursor() as con:
+        rows = con.execute(
+            "SELECT t.id, t.p1, t.p2, t.deadline, t.pp, "
+            "       st.name AS status_name "
+            "FROM tasks t "
+            "JOIN statuses st ON st.id = t.status_id"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def bulk_update_task_pf(updates: list[tuple[float, int]]) -> None:
+    """updates = [(pf, task_id), ...]"""
+    if not updates:
+        return
+    with cursor() as con:
+        con.executemany(
+            "UPDATE tasks SET pf = ? WHERE id = ?",
+            updates,
+        )
+
+
+def update_task_pf(task_id: int, pf: float) -> None:
+    with cursor() as con:
+        con.execute("UPDATE tasks SET pf = ? WHERE id = ?", (pf, task_id))
+
+
+def list_tasks() -> list[dict]:
+    with cursor() as con:
+        rows = con.execute(
+            "SELECT t.id, t.name, t.description, "
+            "       t.epic_id, e.name AS epic_name, "
+            "       t.role_id, r.name AS role_name, "
+            "       t.subrole_id, sr.name AS subrole_name, "
+            "       t.p1, t.p2, t.deadline, t.pp, "
+            "       t.status_id, st.name AS status_name, "
+            "       t.macro_sprint_id, m.code AS macro_code, "
+            "       t.sprint_id, sp.code AS sprint_code, "
+            "       t.comment, t.pf "
+            "FROM tasks t "
+            "LEFT JOIN epics e ON e.id = t.epic_id "
+            "LEFT JOIN roles r ON r.id = t.role_id "
+            "LEFT JOIN subroles sr ON sr.id = t.subrole_id "
+            "JOIN statuses st ON st.id = t.status_id "
+            "LEFT JOIN macro_sprints m ON m.id = t.macro_sprint_id "
+            "LEFT JOIN sprints sp ON sp.id = t.sprint_id"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def execute_query(sql: str) -> list[dict]:
+    """Выполняет произвольный SELECT и возвращает результат."""
+    with cursor() as con:
+        rows = con.execute(sql).fetchall()
+        return [dict(r) for r in rows]
+
+
+def count_query(sql: str) -> int:
+    """Выполняет SELECT, возвращает число строк."""
+    with cursor() as con:
+        cur = con.execute(sql)
+        # fetchall, чтобы получить всё и посчитать
+        return len(cur.fetchall())

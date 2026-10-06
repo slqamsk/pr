@@ -60,8 +60,14 @@ class SprintsTab(ttk.Frame):
         ttk.Button(btns, text="Удалить",   command=self._delete).pack(side="left")
         ttk.Button(btns, text="Обновить",  command=self._on_refresh_clicked).pack(side="right")
 
-        # ---- Форма ----
-        form = ttk.LabelFrame(self, text="Запись", padding=8)
+        # ---- Двухколоночный блок: Запись | Критерии ----
+        two_col = ttk.Frame(self)
+        two_col.columnconfigure(0, weight=1, uniform="f")
+        two_col.columnconfigure(1, weight=1, uniform="f")
+
+        # Форма — слева
+        form = ttk.LabelFrame(two_col, text="Запись", padding=8)
+        form.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
         form.columnconfigure(1, weight=1)
 
         self.var_code   = tk.StringVar()
@@ -116,8 +122,10 @@ class SprintsTab(ttk.Frame):
                                       values=[""], state="readonly", width=14)
         self.cmb_macro.grid(row=r, column=1, sticky="w", pady=2)
 
-        # ---- Блок критериев ----
-        grp_crit = ttk.LabelFrame(self, text="Критерии достижения", padding=8)
+        # Критерии — справа
+        grp_crit = ttk.LabelFrame(two_col, text="Критерии достижения", padding=8)
+        grp_crit.grid(row=0, column=1, sticky="nsew", padx=(4, 0))
+
         self.criteria_list = EditableCriteriaList(
             grp_crit,
             statuses=[s["name"] for s in self._crit_statuses],
@@ -133,8 +141,7 @@ class SprintsTab(ttk.Frame):
 
         # ---- Упаковка снизу вверх ----
         btns.pack(side="bottom", fill="x")
-        grp_crit.pack(side="bottom", fill="both", expand=False, pady=(8, 0))
-        form.pack(side="bottom", fill="x", pady=(8, 0))
+        two_col.pack(side="bottom", fill="both", expand=False, pady=(8, 0))
         self.table.pack(side="top", fill="both", expand=True)
 
     # ---------- снимок ----------

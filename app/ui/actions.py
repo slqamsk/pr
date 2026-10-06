@@ -5,7 +5,8 @@ import sqlite3
 from datetime import datetime
 
 from db import db
-from ui.widgets import CalendarPopup, ScrollableTable, ask_unsaved_changes
+from ui.widgets import (CalendarPopup, ScrollableTable,
+                        ask_unsaved_changes, SqlFilterDialog)
 
 COLUMNS = [
     {"key": "date",        "title": "Date",      "width": 90,  "wrap": False},
@@ -27,6 +28,26 @@ _USER_COLOR      = "#606060"
 _EMPTY_COLOR     = "#999999"
 
 _DEFAULT_STATUS = "В работе"
+
+_SQL_MODE_ALL = "Все записи"
+_SQL_MODE_FILTER = "Применить фильтр"
+
+_ACTION_BASE_SQL = (
+    "SELECT a.id, a.name, a.description, a.date, a.pp, "
+    "       a.start_time, a.end_time, a.duration, "
+    "       a.task_id, t.name AS task_name, "
+    "       a.epic_id, e.name AS epic_name, "
+    "       a.role_id, r.name AS role_name, "
+    "       a.subrole_id, sr.name AS subrole_name, "
+    "       a.status_id, st.name AS status_name "
+    "FROM actions a "
+    "LEFT JOIN tasks t ON t.id = a.task_id "
+    "LEFT JOIN epics e ON e.id = a.epic_id "
+    "LEFT JOIN roles r ON r.id = a.role_id "
+    "LEFT JOIN subroles sr ON sr.id = a.subrole_id "
+    "JOIN action_statuses st ON st.id = a.status_id"
+)
+_ACTION_DEFAULT_ORDER = "ORDER BY a.date DESC, a.start_time IS NULL, a.start_time DESC, a.id DESC"
 
 
 def _to_iso(s: str) -> str:
@@ -60,7 +81,6 @@ def _minutes_to_hhmm(m: int) -> str:
 
 
 def compute_time_block(start_str: str, end_str: str, dur_str: str):
-    """Возвращает (start, end, dur, start_computed, end_computed, dur_computed)."""
     s = start_str.strip()
     e = end_str.strip()
     d = dur_str.strip()
@@ -100,7 +120,6 @@ def compute_time_block(start_str: str, end_str: str, dur_str: str):
 
 
 def _ask_status_dialog(parent, options) -> str | None:
-    """Модальный диалог выбора статуса. Возвращает имя статуса или None."""
     result = {"value": None}
     dlg = tk.Toplevel(parent)
     dlg.title("Выбор статуса")
@@ -160,19 +179,26 @@ class ActionsTab(ttk.Frame):
         self._statuses = db.list_action_statuses()
         self._status_by_name = {s["name"]: s["id"] for s in self._statuses}
 
-        # ---- Нижний ряд кнопок (создаём, но упакуем в конце) ----
+        # ---- Нижний ряд кнопок ----
         btns = ttk.Frame(self, padding=(0, 8, 0, 0))
         ttk.Button(btns, text="Новая",     command=self._new).pack(side="left")
         ttk.Button(btns, text="Сохранить", command=self._on_save_clicked).pack(side="left", padx=6)
         ttk.Button(btns, text="Удалить",   command=self._delete).pack(side="left")
         ttk.Button(btns, text="Обновить",  command=self._on_refresh_clicked).pack(side="right")
+        self.btn_sql = ttk.Button(btns, text="SQL…", command=self._open_sql_dialog)
+        self.btn_sql.pack(side="right", padx=(0, 6))
+        self.var_sql_mode = tk.StringVar(value=_SQL_MODE_ALL)
+        self.cmb_sql_mode = ttk.Combobox(btns, textvariable=self.var_sql_mode,
+                                         values=[_SQL_MODE_ALL, _SQL_MODE_FILTER],
+                                         state="readonly", width=20)
+        self.cmb_sql_mode.pack(side="right", padx=(0, 6))
+        self.cmb_sql_mode.bind("<<ComboboxSelected>>", self._on_sql_mode_changed)
 
         # ---- Основная форма ----
         body = ttk.Frame(self)
         body.columnconfigure(0, weight=1, uniform="f")
         body.columnconfigure(1, weight=1, uniform="f")
 
-        # ---------- Основное ----------
         grp_main = ttk.LabelFrame(body, text="Основное", padding=6)
         grp_main.grid(row=0, column=0, sticky="nsew", padx=(0, 4), pady=(0, 4))
         grp_main.columnconfigure(1, weight=1)
@@ -194,7 +220,6 @@ class ActionsTab(ttk.Frame):
         self.txt_desc.configure(yscrollcommand=dsb.set)
         dsb.grid(row=0, column=1, sticky="ns")
 
-        # ---------- Привязки ----------
         grp_links = ttk.LabelFrame(body, text="Привязки", padding=6)
         grp_links.grid(row=0, column=1, sticky="nsew", padx=(4, 0), pady=(0, 4))
         grp_links.columnconfigure(1, weight=1)
@@ -227,7 +252,6 @@ class ActionsTab(ttk.Frame):
                                         values=[], state="disabled", width=30)
         self.cmb_subrole.grid(row=3, column=1, sticky="w", pady=2)
 
-        # ---------- Время и вес ----------
         grp_time = ttk.LabelFrame(body, text="Время и вес", padding=6)
         grp_time.grid(row=1, column=0, sticky="nsew", padx=(0, 4), pady=(4, 0))
         grp_time.columnconfigure(1, weight=1)
@@ -260,7 +284,6 @@ class ActionsTab(ttk.Frame):
         ttk.Entry(grp_time, textvariable=self.var_duration, width=8)\
             .grid(row=4, column=1, sticky="w", pady=2)
 
-        # Кнопки Начать / Завершить — справа
         side_btns = ttk.Frame(grp_time)
         side_btns.grid(row=0, column=2, rowspan=5, sticky="ne", padx=(16, 0), pady=2)
         ttk.Button(side_btns, text="Начать",
@@ -268,7 +291,6 @@ class ActionsTab(ttk.Frame):
         ttk.Button(side_btns, text="Завершить",
                    command=self._on_finish_clicked).pack(fill="x", pady=(6, 0))
 
-        # ---------- Итоги (readonly) ----------
         grp_view = ttk.LabelFrame(body, text="Итоги (только чтение)", padding=6)
         grp_view.grid(row=1, column=1, sticky="nsew", padx=(4, 0), pady=(4, 0))
         grp_view.columnconfigure(1, weight=1)
@@ -291,7 +313,6 @@ class ActionsTab(ttk.Frame):
         self.lbl_v_e  = _row(2, "End",      self.var_v_e)
         self.lbl_v_d  = _row(3, "Duration", self.var_v_d)
 
-        # ---------- Прочее ----------
         grp_other = ttk.LabelFrame(body, text="Прочее", padding=6)
         grp_other.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
         grp_other.columnconfigure(1, weight=1)
@@ -308,14 +329,137 @@ class ActionsTab(ttk.Frame):
         self.table = ScrollableTable(self, COLUMNS, on_select=self._on_table_select,
                                      settings_key="ui.columns.actions")
 
-        # ---- Упаковка: снизу вверх ----
+        self.var_table_status = tk.StringVar(value="")
+        self.lbl_table_status = tk.Label(self, textvariable=self.var_table_status,
+                                         anchor="w", padx=8, pady=2, fg="#606060")
+
+        # ---- Упаковка снизу вверх ----
         btns.pack(side="bottom", fill="x")
         body.pack(side="bottom", fill="x", pady=(8, 0))
+        self.lbl_table_status.pack(side="bottom", fill="x", padx=8)
         self.table.pack(side="top", fill="both", expand=True)
 
-        # ---- Пересчёт на лету ----
         for v in (self.var_pp, self.var_start, self.var_end, self.var_duration):
             v.trace_add("write", lambda *_: self._recompute_view())
+
+    # ---------- SQL-фильтр ----------
+    def _get_sql_mode(self) -> str:
+        return self.var_sql_mode.get() or _SQL_MODE_ALL
+
+    def _get_saved_where(self) -> str:
+        return db.get_setting("ui.sql_filter.actions.where", "") or ""
+
+    def _get_saved_order(self) -> str | None:
+        return db.get_setting("ui.sql_filter.actions.order_by")
+
+    def _get_effective_order(self) -> str:
+        v = self._get_saved_order()
+        if v is None:
+            return _ACTION_DEFAULT_ORDER
+        return v
+
+    def _build_action_sql(self, where: str, order: str) -> str:
+        parts = [_ACTION_BASE_SQL]
+        if where:
+            parts.append(where)
+        if order:
+            parts.append(order)
+        return " ".join(parts)
+
+    def _load_table(self):
+        mode = self._get_sql_mode()
+        where = self._get_saved_where()
+        order = self._get_effective_order()
+
+        if mode == _SQL_MODE_FILTER:
+            sql = self._build_action_sql(where, order)
+            try:
+                rows = db.execute_query(sql)
+                summary = " ".join(filter(None, [where, order])).strip()
+                if len(summary) > 80:
+                    summary = summary[:77] + "..."
+                self._set_table_status(f"Применён фильтр: {summary}" if summary
+                                       else "Применён фильтр")
+            except Exception as e:
+                sql = self._build_action_sql("", _ACTION_DEFAULT_ORDER)
+                rows = db.execute_query(sql)
+                self._set_table_status(f"Фильтр не применён: {e}", error=True)
+        else:
+            sql = self._build_action_sql("", _ACTION_DEFAULT_ORDER)
+            rows = db.execute_query(sql)
+            self._set_table_status("Показаны все записи")
+
+        self._raw_by_id = {r["id"]: r for r in rows}
+        display = [{
+            "id":           r["id"],
+            "date":         _to_ru(r["date"]) if r["date"] else "",
+            "start_time":   r["start_time"] or "",
+            "end_time":     r["end_time"] or "",
+            "duration":     "" if r["duration"] is None else r["duration"],
+            "pp":           "" if r["pp"] is None else f"{r['pp']:.1f}",
+            "name":         r["name"] or "",
+            "description":  r["description"] or "",
+            "task_name":    r["task_name"] or "",
+            "epic_name":    r["epic_name"] or "",
+            "role_name":    (_role_display(r["role_id"], r["role_name"])
+                             if r["role_id"] else ""),
+            "subrole_name": r["subrole_name"] or "",
+            "status_name":  r["status_name"],
+        } for r in rows]
+        self.table.set_rows(display, iid_key="id")
+        if self.current_id is not None:
+            self.table.select_iid(str(self.current_id))
+
+    def _set_table_status(self, text: str, error: bool = False):
+        self.var_table_status.set(text)
+        self.lbl_table_status.configure(fg=("#a00000" if error else "#606060"))
+
+    def _on_sql_mode_changed(self, _e=None):
+        if self._is_dirty():
+            db_enabled = db.get_setting("ui.sql_filter.actions.enabled", "0") == "1"
+            self.var_sql_mode.set(_SQL_MODE_FILTER if db_enabled else _SQL_MODE_ALL)
+            return
+        enabled = (self._get_sql_mode() == _SQL_MODE_FILTER)
+        db.set_setting("ui.sql_filter.actions.enabled", "1" if enabled else "0")
+        self._load_table()
+
+    def _open_sql_dialog(self):
+        if self._is_dirty():
+            messagebox.showinfo("SQL-фильтр",
+                                "Сначала сохраните или отмените изменения формы.",
+                                parent=self.winfo_toplevel())
+            return
+
+        where_text = self._get_saved_where()
+        order_text = self._get_saved_order()
+        if order_text is None:
+            order_text = _ACTION_DEFAULT_ORDER
+
+        def _validate(sql):
+            return db.count_query(sql)
+
+        def _apply(where, order):
+            db.set_setting("ui.sql_filter.actions.where", where or "")
+            db.set_setting("ui.sql_filter.actions.order_by", order or "")
+            db.set_setting("ui.sql_filter.actions.enabled", "1")
+            self.var_sql_mode.set(_SQL_MODE_FILTER)
+            self._load_table()
+
+        dlg = SqlFilterDialog(
+            parent=self.winfo_toplevel(),
+            base_sql=_ACTION_BASE_SQL,
+            where_text=where_text,
+            order_by_text=order_text,
+            default_order_by=_ACTION_DEFAULT_ORDER,
+            validate_sql=_validate,
+            on_apply=_apply,
+        )
+        self.wait_window(dlg)
+
+    def _update_sql_button_state(self):
+        dirty = self._is_dirty()
+        self.btn_sql.configure(state="disabled" if dirty else "normal")
+        self.cmb_sql_mode.configure(state="disabled" if dirty else "readonly")
 
     # ---------- визуальный блок ----------
     def _recompute_view(self):
@@ -488,6 +632,8 @@ class ActionsTab(ttk.Frame):
 
     def _set_snapshot(self):
         self._snapshot = self._form_state()
+        if hasattr(self, "btn_sql"):
+            self._update_sql_button_state()
 
     def _is_dirty(self) -> bool:
         if self._snapshot is None:
@@ -513,27 +659,10 @@ class ActionsTab(ttk.Frame):
         self._refresh_epic_combo()
         self._refresh_task_combo(None)
 
-        raw = db.list_actions()
-        self._raw_by_id = {r["id"]: r for r in raw}
-        display = [{
-            "id":           r["id"],
-            "date":         _to_ru(r["date"]) if r["date"] else "",
-            "start_time":   r["start_time"] or "",
-            "end_time":     r["end_time"] or "",
-            "duration":     "" if r["duration"] is None else r["duration"],
-            "pp":           "" if r["pp"] is None else f"{r['pp']:.1f}",
-            "name":         r["name"] or "",
-            "description":  r["description"] or "",
-            "task_name":    r["task_name"] or "",
-            "epic_name":    r["epic_name"] or "",
-            "role_name":    (_role_display(r["role_id"], r["role_name"])
-                             if r["role_id"] else ""),
-            "subrole_name": r["subrole_name"] or "",
-            "status_name":  r["status_name"],
-        } for r in raw]
-        self.table.set_rows(display, iid_key="id")
-        if self.current_id is not None:
-            self.table.select_iid(str(self.current_id))
+        enabled = db.get_setting("ui.sql_filter.actions.enabled", "0") == "1"
+        self.var_sql_mode.set(_SQL_MODE_FILTER if enabled else _SQL_MODE_ALL)
+
+        self._load_table()
 
     def _load_into_form(self, aid: int):
         self.current_id = aid
@@ -835,7 +964,7 @@ class ActionsTab(ttk.Frame):
                     return
         self.refresh()
 
-    # ---------- workflow: Начать / Завершить ----------
+    # ---------- workflow ----------
     def _on_start_clicked(self):
         if self.current_id is None:
             messagebox.showinfo("Начать",
@@ -869,7 +998,6 @@ class ActionsTab(ttk.Frame):
         self.var_end.set(datetime.now().strftime("%H:%M"))
         self._save()
 
-    # ---------- API для внешнего вызова ----------
     def new_from_task(self, task: dict):
         if self._is_dirty():
             action = ask_unsaved_changes(parent=self.winfo_toplevel())

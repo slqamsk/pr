@@ -5,7 +5,8 @@ import sqlite3
 from datetime import datetime
 
 from db import db
-from ui.widgets import CalendarPopup, ScrollableTable, ask_unsaved_changes
+from ui.widgets import (CalendarPopup, ScrollableTable,
+                        ask_unsaved_changes, SqlFilterDialog)
 from ui.pf import compute_pf
 
 COLUMNS = [
@@ -23,6 +24,29 @@ COLUMNS = [
     {"key": "sprint_code",  "title": "Sprint",     "width": 90,  "wrap": False},
     {"key": "comment",      "title": "Комментарий","width": 220, "wrap": True},
 ]
+
+_SQL_MODE_ALL = "Все записи"
+_SQL_MODE_FILTER = "Применить фильтр"
+
+_TASK_BASE_SQL = (
+    "SELECT t.id, t.name, t.description, "
+    "       t.epic_id, e.name AS epic_name, "
+    "       t.role_id, r.name AS role_name, "
+    "       t.subrole_id, sr.name AS subrole_name, "
+    "       t.p1, t.p2, t.deadline, t.pp, "
+    "       t.status_id, st.name AS status_name, "
+    "       t.macro_sprint_id, m.code AS macro_code, "
+    "       t.sprint_id, sp.code AS sprint_code, "
+    "       t.comment, t.pf "
+    "FROM tasks t "
+    "LEFT JOIN epics e ON e.id = t.epic_id "
+    "LEFT JOIN roles r ON r.id = t.role_id "
+    "LEFT JOIN subroles sr ON sr.id = t.subrole_id "
+    "JOIN statuses st ON st.id = t.status_id "
+    "LEFT JOIN macro_sprints m ON m.id = t.macro_sprint_id "
+    "LEFT JOIN sprints sp ON sp.id = t.sprint_id"
+)
+_TASK_DEFAULT_ORDER = "ORDER BY t.pf ASC"
 
 
 def _to_iso(s: str) -> str:
@@ -68,19 +92,27 @@ class TasksTab(ttk.Frame):
         self._status_by_name = {s["name"]: s["id"] for s in self._statuses}
         self._p1_levels = [p["name"] for p in db.list_p1_levels()]
 
-        # ---- Нижний ряд кнопок (создаём, но упакуем в конце) ----
+        # ---- Нижний ряд кнопок ----
         btns = ttk.Frame(self, padding=(0, 8, 0, 0))
         ttk.Button(btns, text="Новая",     command=self._new).pack(side="left")
         ttk.Button(btns, text="Сохранить", command=self._on_save_clicked).pack(side="left", padx=6)
         ttk.Button(btns, text="Удалить",   command=self._delete).pack(side="left")
         ttk.Button(btns, text="Обновить",  command=self._on_refresh_clicked).pack(side="right")
+        self.btn_sql = ttk.Button(btns, text="SQL…", command=self._open_sql_dialog)
+        self.btn_sql.pack(side="right", padx=(0, 6))
+        self.var_sql_mode = tk.StringVar(value=_SQL_MODE_ALL)
+        self.cmb_sql_mode = ttk.Combobox(btns, textvariable=self.var_sql_mode,
+                                         values=[_SQL_MODE_ALL, _SQL_MODE_FILTER],
+                                         state="readonly", width=20)
+        self.cmb_sql_mode.pack(side="right", padx=(0, 6))
+        self.cmb_sql_mode.bind("<<ComboboxSelected>>", self._on_sql_mode_changed)
 
-        # ---- Основная форма (2 колонки × 2 ряда) ----
+        # ---- Основная форма ----
         body = ttk.Frame(self)
         body.columnconfigure(0, weight=1, uniform="f")
         body.columnconfigure(1, weight=1, uniform="f")
 
-        # --- Основное ---
+        # Основное
         grp_main = ttk.LabelFrame(body, text="Основное", padding=6)
         grp_main.grid(row=0, column=0, sticky="nsew", padx=(0, 4), pady=(0, 4))
         grp_main.columnconfigure(1, weight=1)
@@ -102,7 +134,7 @@ class TasksTab(ttk.Frame):
         self.txt_desc.configure(yscrollcommand=dsb.set)
         dsb.grid(row=0, column=1, sticky="ns")
 
-        # --- Сроки и вес ---
+        # Сроки и вес
         grp_time = ttk.LabelFrame(body, text="Сроки и вес", padding=6)
         grp_time.grid(row=0, column=1, sticky="nsew", padx=(4, 0), pady=(0, 4))
         grp_time.columnconfigure(1, weight=1)
@@ -141,11 +173,10 @@ class TasksTab(ttk.Frame):
                            foreground="#004080", font=("TkDefaultFont", 10, "bold"))
         pf_lbl.grid(row=4, column=1, sticky="w", pady=2)
 
-        # Кнопка «Делать» — справа по центру группы
         ttk.Button(grp_time, text="Делать", command=self._on_do_clicked)\
             .grid(row=0, column=2, rowspan=5, sticky="e", padx=(12, 0), pady=2)
 
-        # --- Привязки ---
+        # Привязки
         grp_links = ttk.LabelFrame(body, text="Привязки", padding=6)
         grp_links.grid(row=1, column=0, sticky="nsew", padx=(0, 4), pady=(4, 0))
         grp_links.columnconfigure(1, weight=1)
@@ -189,7 +220,7 @@ class TasksTab(ttk.Frame):
                                        values=[""], state="disabled", width=32)
         self.cmb_sprint.grid(row=4, column=1, sticky="w", pady=2)
 
-        # --- Прочее ---
+        # Прочее
         grp_other = ttk.LabelFrame(body, text="Прочее", padding=6)
         grp_other.grid(row=1, column=1, sticky="nsew", padx=(4, 0), pady=(4, 0))
         grp_other.columnconfigure(1, weight=1)
@@ -214,16 +245,21 @@ class TasksTab(ttk.Frame):
         self.txt_comment.configure(yscrollcommand=csb.set)
         csb.grid(row=0, column=1, sticky="ns")
 
-        # ---- Таблица ----
+        # Таблица + статусная строка
         self.table = ScrollableTable(self, COLUMNS, on_select=self._on_table_select,
                                      settings_key="ui.columns.tasks")
 
-        # ---- Упаковка: снизу вверх ----
+        self.var_table_status = tk.StringVar(value="")
+        self.lbl_table_status = tk.Label(self, textvariable=self.var_table_status,
+                                         anchor="w", padx=8, pady=2, fg="#606060")
+
+        # ---- Упаковка снизу вверх ----
         btns.pack(side="bottom", fill="x")
         body.pack(side="bottom", fill="x", pady=(8, 0))
+        self.lbl_table_status.pack(side="bottom", fill="x", padx=8)
         self.table.pack(side="top", fill="both", expand=True)
 
-        # ---- Пересчёт PF на лету ----
+        # Пересчёт PF на лету
         for v in (self.var_p1, self.var_p2, self.var_deadline,
                   self.var_pp, self.var_status):
             v.trace_add("write", lambda *_: self._recompute_pf())
@@ -257,6 +293,20 @@ class TasksTab(ttk.Frame):
         pf = compute_pf(status, p1, p2, deadline_iso, pp,
                         pomodoro_per_day=self._pf_pomodoro)
         self.var_pf_display.set(f"{pf:.2f}")
+
+    def _recompute_all_pf(self):
+        """Пересчитать PF всех задач и записать в БД."""
+        if not hasattr(self, "_pf_pomodoro"):
+            self._pf_pomodoro = db.get_pomodoro_per_day()
+        data = db.list_tasks_pf_data()
+        updates: list[tuple[float, int]] = []
+        for r in data:
+            pf = compute_pf(r["status_name"], r["p1"], r["p2"],
+                            r["deadline"], r["pp"],
+                            pomodoro_per_day=self._pf_pomodoro)
+            updates.append((pf, r["id"]))
+        if updates:
+            db.bulk_update_task_pf(updates)
 
     # ---------- комбобоксы ----------
     def _refresh_role_combo(self):
@@ -381,6 +431,134 @@ class TasksTab(ttk.Frame):
         self.var_sprint.set("")
         self._recompute_pf()
 
+    # ---------- SQL-фильтр ----------
+    def _get_sql_mode(self) -> str:
+        return self.var_sql_mode.get() or _SQL_MODE_ALL
+
+    def _get_saved_where(self) -> str:
+        return db.get_setting("ui.sql_filter.tasks.where", "") or ""
+
+    def _get_saved_order(self) -> str | None:
+        v = db.get_setting("ui.sql_filter.tasks.order_by")
+        return v  # None, если ещё не открывали
+
+    def _get_effective_order(self) -> str:
+        v = self._get_saved_order()
+        if v is None:
+            return _TASK_DEFAULT_ORDER
+        return v
+
+    def _build_task_sql(self, where: str, order: str) -> str:
+        parts = [_TASK_BASE_SQL]
+        if where:
+            parts.append(where)
+        if order:
+            parts.append(order)
+        return " ".join(parts)
+
+    def _load_table(self):
+        mode = self._get_sql_mode()
+        where = self._get_saved_where()
+        order = self._get_effective_order()
+
+        if mode == _SQL_MODE_FILTER:
+            sql = self._build_task_sql(where, order)
+            try:
+                rows = db.execute_query(sql)
+                summary = " ".join(filter(None, [where, order])).strip()
+                if len(summary) > 80:
+                    summary = summary[:77] + "..."
+                self._set_table_status(f"Применён фильтр: {summary}" if summary
+                                       else "Применён фильтр")
+            except Exception as e:
+                sql = self._build_task_sql("", _TASK_DEFAULT_ORDER)
+                rows = db.execute_query(sql)
+                self._set_table_status(f"Фильтр не применён: {e}", error=True)
+        else:
+            sql = self._build_task_sql("", _TASK_DEFAULT_ORDER)
+            rows = db.execute_query(sql)
+            self._set_table_status("Показаны все записи")
+
+        self._raw_by_id = {r["id"]: r for r in rows}
+
+        display = []
+        for r in rows:
+            pf_val = r.get("pf")
+            pf_str = "" if pf_val is None else f"{float(pf_val):.2f}"
+            display.append({
+                "id":           r["id"],
+                "pf":           pf_str,
+                "name":         r["name"],
+                "epic_name":    r["epic_name"] or "",
+                "role_name":    (_role_display(r["role_id"], r["role_name"])
+                                 if r["role_id"] else ""),
+                "subrole_name": r["subrole_name"] or "",
+                "deadline":     _to_ru(r["deadline"]) if r["deadline"] else "",
+                "p1":           r["p1"] or "",
+                "p2":           "" if r["p2"] is None else r["p2"],
+                "pp":           "" if r["pp"] is None else f"{r['pp']:.1f}",
+                "status_name":  r["status_name"],
+                "macro_code":   r["macro_code"] or "",
+                "sprint_code":  r["sprint_code"] or "",
+                "comment":      r["comment"] or "",
+            })
+        self.table.set_rows(display, iid_key="id")
+        if self.current_id is not None:
+            self.table.select_iid(str(self.current_id))
+
+    def _set_table_status(self, text: str, error: bool = False):
+        self.var_table_status.set(text)
+        self.lbl_table_status.configure(fg=("#a00000" if error else "#606060"))
+
+    def _on_sql_mode_changed(self, _e=None):
+        if self._is_dirty():
+            db_enabled = db.get_setting("ui.sql_filter.tasks.enabled", "0") == "1"
+            self.var_sql_mode.set(_SQL_MODE_FILTER if db_enabled else _SQL_MODE_ALL)
+            return
+        enabled = (self._get_sql_mode() == _SQL_MODE_FILTER)
+        db.set_setting("ui.sql_filter.tasks.enabled", "1" if enabled else "0")
+        self._load_table()
+
+    def _open_sql_dialog(self):
+        if self._is_dirty():
+            messagebox.showinfo("SQL-фильтр",
+                                "Сначала сохраните или отмените изменения формы.",
+                                parent=self.winfo_toplevel())
+            return
+
+        where_text = self._get_saved_where()
+        order_text = self._get_saved_order()
+        if order_text is None:
+            order_text = _TASK_DEFAULT_ORDER
+
+        def _validate(sql):
+            return db.count_query(sql)
+
+        def _apply(where, order):
+            db.set_setting("ui.sql_filter.tasks.where", where or "")
+            db.set_setting("ui.sql_filter.tasks.order_by", order or "")
+            db.set_setting("ui.sql_filter.tasks.enabled", "1")
+            self.var_sql_mode.set(_SQL_MODE_FILTER)
+            self._load_table()
+
+        dlg = SqlFilterDialog(
+            parent=self.winfo_toplevel(),
+            base_sql=_TASK_BASE_SQL,
+            where_text=where_text,
+            order_by_text=order_text,
+            default_order_by=_TASK_DEFAULT_ORDER,
+            validate_sql=_validate,
+            on_apply=_apply,
+        )
+        self.wait_window(dlg)
+
+    def _update_sql_button_state(self):
+        dirty = self._is_dirty()
+        state_btn = "disabled" if dirty else "normal"
+        state_cmb = "disabled" if dirty else "readonly"
+        self.btn_sql.configure(state=state_btn)
+        self.cmb_sql_mode.configure(state=state_cmb)
+
     # ---------- снимок ----------
     def _form_state(self) -> dict:
         return {
@@ -401,6 +579,8 @@ class TasksTab(ttk.Frame):
 
     def _set_snapshot(self):
         self._snapshot = self._form_state()
+        if hasattr(self, "btn_sql"):
+            self._update_sql_button_state()
 
     def _is_dirty(self) -> bool:
         if self._snapshot is None:
@@ -423,41 +603,15 @@ class TasksTab(ttk.Frame):
     # ---------- данные ----------
     def refresh(self):
         self._pf_pomodoro = db.get_pomodoro_per_day()
+        self._recompute_all_pf()
         self._refresh_role_combo()
         self._refresh_epic_combo()
         self._refresh_macro_combo()
 
-        raw = db.list_tasks()
-        self._raw_by_id = {r["id"]: r for r in raw}
+        enabled = db.get_setting("ui.sql_filter.tasks.enabled", "0") == "1"
+        self.var_sql_mode.set(_SQL_MODE_FILTER if enabled else _SQL_MODE_ALL)
 
-        display = []
-        for r in raw:
-            pf = compute_pf(
-                r["status_name"], r["p1"], r["p2"], r["deadline"], r["pp"],
-                pomodoro_per_day=self._pf_pomodoro,
-            )
-            display.append({
-                "id":           r["id"],
-                "pf":           f"{pf:.2f}",
-                "_pf":          pf,
-                "name":         r["name"],
-                "epic_name":    r["epic_name"] or "",
-                "role_name":    (_role_display(r["role_id"], r["role_name"])
-                                 if r["role_id"] else ""),
-                "subrole_name": r["subrole_name"] or "",
-                "deadline":     _to_ru(r["deadline"]) if r["deadline"] else "",
-                "p1":           r["p1"] or "",
-                "p2":           "" if r["p2"] is None else r["p2"],
-                "pp":           "" if r["pp"] is None else f"{r['pp']:.1f}",
-                "status_name":  r["status_name"],
-                "macro_code":   r["macro_code"] or "",
-                "sprint_code":  r["sprint_code"] or "",
-                "comment":      r["comment"] or "",
-            })
-        display.sort(key=lambda d: (d["_pf"], d["name"]))
-        self.table.set_rows(display, iid_key="id")
-        if self.current_id is not None:
-            self.table.select_iid(str(self.current_id))
+        self._load_table()
 
     def _load_into_form(self, tid: int):
         self.current_id = tid
@@ -754,6 +908,14 @@ class TasksTab(ttk.Frame):
                 messagebox.showwarning("Валидация", msg,
                                        parent=self.winfo_toplevel())
             return False
+
+        # пересчёт PF только для текущей задачи
+        pf = compute_pf(self.var_status.get().strip(), p1, p2, deadline, pp,
+                        pomodoro_per_day=self._pf_pomodoro)
+        try:
+            db.update_task_pf(self.current_id, pf)
+        except Exception:
+            pass
 
         self._set_snapshot()
         self.refresh()

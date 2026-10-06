@@ -8,13 +8,50 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-from db import db_init
+from db import db, db_init
 from ui.macro_sprints import MacroSprintsTab
 from ui.sprints import SprintsTab
 from ui.epics import EpicsTab
 from ui.tasks import TasksTab
 from ui.actions import ActionsTab
 from ui.settings import SettingsTab
+
+_GEOMETRY_KEY = "ui.main_window.geometry"
+
+
+def _load_geometry(root) -> str | None:
+    """Возвращает сохранённую геометрию, если она влезает в текущий экран."""
+    raw = db.get_setting(_GEOMETRY_KEY)
+    if not raw:
+        return None
+    try:
+        # формат: WxH+X+Y или WxH-X-Y и т.п.
+        import re
+        m = re.match(r"^(\d+)x(\d+)([+-]\d+)([+-]\d+)$", raw.strip())
+        if not m:
+            return None
+        w, h, x, y = (int(m.group(1)), int(m.group(2)),
+                      int(m.group(3)), int(m.group(4)))
+        scr_w = root.winfo_screenwidth()
+        scr_h = root.winfo_screenheight()
+        # если вылезаем за экран по позиции — оставляем размер, но не позицию
+        if x < 0 or y < 0 or x > scr_w - 200 or y > scr_h - 100:
+            return f"{w}x{h}"
+        # если размер больше экрана — берём по размеру экрана
+        if w > scr_w - 40 or h > scr_h - 80:
+            return None
+        return raw.strip()
+    except Exception:
+        return None
+
+
+def _save_geometry(root) -> None:
+    try:
+        if root.state() != "normal":
+            return
+        db.set_setting(_GEOMETRY_KEY, root.geometry())
+    except Exception:
+        pass
 
 
 def _run() -> None:
@@ -34,26 +71,21 @@ def _run() -> None:
 
     root = tk.Tk()
     root.title("pr_v01")
-
-    # Размер окна рассчитываем от размера экрана,
-    # чтобы форма гарантированно поместилась.
-    scr_w = root.winfo_screenwidth()
-    scr_h = root.winfo_screenheight()
-
-    want_w = 1400
-    want_h = 900
-
-    width  = max(1000, min(want_w, scr_w - 40))
-    height = max(650,  min(want_h, scr_h - 80))
-
-    root.geometry(f"{width}x{height}")
     root.minsize(1000, 650)
+
+    saved = _load_geometry(root)
+    if saved:
+        root.geometry(saved)
+    else:
+        scr_w = root.winfo_screenwidth()
+        scr_h = root.winfo_screenheight()
+        width  = max(1000, min(1400, scr_w - 40))
+        height = max(650,  min(900,  scr_h - 80))
+        root.geometry(f"{width}x{height}")
 
     nb = ttk.Notebook(root)
     nb.pack(fill="both", expand=True)
 
-    # Actions нужен раньше Tasks, потому что Tasks получает callback,
-    # который переключает на вкладку Actions и вызывает её метод.
     tab_macro    = MacroSprintsTab(nb)
     tab_sprint   = SprintsTab(nb)
     tab_epics    = EpicsTab(nb)
@@ -95,6 +127,7 @@ def _run() -> None:
         for tab in all_tabs:
             if not tab.confirm_leave():
                 return
+        _save_geometry(root)
         root.destroy()
 
     root.protocol("WM_DELETE_WINDOW", on_close)
