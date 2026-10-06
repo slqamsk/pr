@@ -1,0 +1,610 @@
+{
+  "meta": {
+    "exported_at": "2026-10-05T16:32:35",
+    "schema_version": 1,
+    "app_name": "pr_v01",
+    "db_path": "E:\\YandexDisk\\slqa\\pr\\app\\data\\pr_v01.db",
+    "table_counts": {
+      "roles": 7,
+      "subroles": 1,
+      "macro_sprints": 2,
+      "sprints": 2,
+      "epics": 4,
+      "tasks": 15,
+      "actions": 8,
+      "statuses": 4,
+      "action_statuses": 5,
+      "p1_levels": 5,
+      "settings": 8
+    }
+  },
+  "tables": {
+    "roles": [
+      {
+        "id": 1,
+        "name": "Управляющий жизнью"
+      },
+      {
+        "id": 2,
+        "name": "Управляющий здоровьем"
+      },
+      {
+        "id": 3,
+        "name": "Финансовый обеспечитель"
+      },
+      {
+        "id": 4,
+        "name": "Ведущий хозяйство"
+      },
+      {
+        "id": 5,
+        "name": "Творец / Создатель"
+      },
+      {
+        "id": 6,
+        "name": "Сын"
+      },
+      {
+        "id": 7,
+        "name": "Муж и отец"
+      }
+    ],
+    "subroles": [
+      {
+        "id": 1,
+        "role_id": 3,
+        "name": "Преподаватель УЦ"
+      }
+    ],
+    "macro_sprints": [
+      {
+        "id": 1,
+        "code": "MS-01",
+        "start_date": "2026-09-28",
+        "end_date": "2026-10-04",
+        "goal": "Отладить использование системы",
+        "status_id": 2,
+        "priority": null
+      },
+      {
+        "id": 2,
+        "code": "MS-02",
+        "start_date": "2026-10-05",
+        "end_date": "2026-10-11",
+        "goal": "",
+        "status_id": 1,
+        "priority": null
+      }
+    ],
+    "sprints": [
+      {
+        "id": 1,
+        "code": "S-01-01",
+        "start_date": "2026-10-03",
+        "end_date": "2026-10-03",
+        "goal": "Воскресное занятие полностью готово, ДЗ проверено, а по просроченным делам достигнуто максимально возможное продвижение.",
+        "status_id": 2,
+        "macro_sprint_id": 1
+      },
+      {
+        "id": 2,
+        "code": "S-02-01",
+        "start_date": "2026-10-05",
+        "end_date": "2026-10-05",
+        "goal": "",
+        "status_id": 1,
+        "macro_sprint_id": 2
+      }
+    ],
+    "epics": [
+      {
+        "id": 1,
+        "name": "Спецкурс UAT - ДЗ",
+        "goal": "Проверить ДЗ по спецкурсу UAT. Написать и отправить студентам обратную связь",
+        "role_id": 3,
+        "subrole_id": 1,
+        "deadline": "2026-10-03",
+        "status_id": 1,
+        "macro_sprint_id": 1,
+        "comment": null,
+        "priority": 2
+      },
+      {
+        "id": 2,
+        "name": "Обновить описания курсов",
+        "goal": "Обновить описания курсов ТПО-А и ТПО21, отправить Тин, получить ok.",
+        "role_id": 3,
+        "subrole_id": 1,
+        "deadline": "2026-10-03",
+        "status_id": 1,
+        "macro_sprint_id": 1,
+        "comment": null,
+        "priority": 3
+      },
+      {
+        "id": 3,
+        "name": "Подготовиться к занятию ТПО22 - 04.10.26",
+        "goal": "Подготовить презентацию, домашние задания и другие материалы",
+        "role_id": 3,
+        "subrole_id": 1,
+        "deadline": "2026-10-03",
+        "status_id": 1,
+        "macro_sprint_id": 1,
+        "comment": null,
+        "priority": 1
+      },
+      {
+        "id": 4,
+        "name": "ТПО21 - запись - ответить на вопросы",
+        "goal": "Найти письмо от менеджеров по вебинарам, продумать ответ, ответить, проверить, что они получили и приняли ответ.",
+        "role_id": 3,
+        "subrole_id": 1,
+        "deadline": "2026-10-05",
+        "status_id": 1,
+        "macro_sprint_id": 2,
+        "comment": null,
+        "priority": null
+      }
+    ],
+    "tasks": [
+      {
+        "id": 1,
+        "name": "Декомпозировать эпики просроченных дел до задач",
+        "description": null,
+        "epic_id": null,
+        "role_id": 3,
+        "subrole_id": 1,
+        "p1": "C",
+        "p2": null,
+        "deadline": "2026-10-05",
+        "pp": 2.0,
+        "status_id": 1,
+        "macro_sprint_id": 2,
+        "sprint_id": 2,
+        "comment": null
+      },
+      {
+        "id": 2,
+        "name": "Оценить трудоёмкость задач, относящихся к эпикам просроченных дел",
+        "description": null,
+        "epic_id": null,
+        "role_id": 3,
+        "subrole_id": 1,
+        "p1": "C",
+        "p2": null,
+        "deadline": "2026-10-05",
+        "pp": 2.0,
+        "status_id": 1,
+        "macro_sprint_id": 2,
+        "sprint_id": 2,
+        "comment": null
+      },
+      {
+        "id": 3,
+        "name": "ТПО22 - подготовка к занятию - декомпозиция",
+        "description": "Посмотреть и оценить \"Фронт работ\", декомпозировать эпик на отдельные задачи",
+        "epic_id": 3,
+        "role_id": 3,
+        "subrole_id": 1,
+        "p1": "A",
+        "p2": null,
+        "deadline": "2026-10-03",
+        "pp": 2.0,
+        "status_id": 3,
+        "macro_sprint_id": 1,
+        "sprint_id": 1,
+        "comment": null
+      },
+      {
+        "id": 4,
+        "name": "ТПО22 - проверить домашние задания",
+        "description": null,
+        "epic_id": 3,
+        "role_id": 3,
+        "subrole_id": 1,
+        "p1": "A",
+        "p2": 2,
+        "deadline": "2026-10-03",
+        "pp": 1.0,
+        "status_id": 3,
+        "macro_sprint_id": 1,
+        "sprint_id": 1,
+        "comment": null
+      },
+      {
+        "id": 5,
+        "name": "ТПО22 - добавить несколько описаний рисков",
+        "description": "Модуль 2, слайд 9",
+        "epic_id": 3,
+        "role_id": 3,
+        "subrole_id": 1,
+        "p1": "A",
+        "p2": 3,
+        "deadline": "2026-10-03",
+        "pp": 1.0,
+        "status_id": 3,
+        "macro_sprint_id": 1,
+        "sprint_id": 1,
+        "comment": null
+      },
+      {
+        "id": 6,
+        "name": "ТПО22 - улучшить описание методов работы с рисками",
+        "description": "Модуль 2, слайд 16",
+        "epic_id": 3,
+        "role_id": 3,
+        "subrole_id": 1,
+        "p1": "A",
+        "p2": 4,
+        "deadline": "2026-10-03",
+        "pp": 1.0,
+        "status_id": 1,
+        "macro_sprint_id": 1,
+        "sprint_id": 1,
+        "comment": null
+      },
+      {
+        "id": 7,
+        "name": "ТПО22 - примеры рисков - распознать картинки",
+        "description": "Модуль 2, слайды 20 - 25",
+        "epic_id": 3,
+        "role_id": 3,
+        "subrole_id": 1,
+        "p1": "B",
+        "p2": null,
+        "deadline": "2026-10-03",
+        "pp": 1.0,
+        "status_id": 1,
+        "macro_sprint_id": 1,
+        "sprint_id": 1,
+        "comment": null
+      },
+      {
+        "id": 8,
+        "name": "ТПО22 - роли в команде - распознать картинки",
+        "description": "Модуль 2, слайды 48 - 56",
+        "epic_id": 3,
+        "role_id": 3,
+        "subrole_id": 1,
+        "p1": "A",
+        "p2": 6,
+        "deadline": "2026-10-03",
+        "pp": 1.0,
+        "status_id": 1,
+        "macro_sprint_id": 1,
+        "sprint_id": 1,
+        "comment": null
+      },
+      {
+        "id": 9,
+        "name": "ТПО22 - задачи руководителя - распознать картинки",
+        "description": "Модуль 2, слайды 62 и дальше",
+        "epic_id": 3,
+        "role_id": 3,
+        "subrole_id": 1,
+        "p1": "B",
+        "p2": null,
+        "deadline": "2026-10-03",
+        "pp": 1.0,
+        "status_id": 1,
+        "macro_sprint_id": 1,
+        "sprint_id": 1,
+        "comment": null
+      },
+      {
+        "id": 10,
+        "name": "ТПО22 - практическое задание - приём на работу",
+        "description": "Подготовить карточки, продумать задание, модуль 2, слайд 67",
+        "epic_id": 3,
+        "role_id": 3,
+        "subrole_id": 1,
+        "p1": "A",
+        "p2": 1,
+        "deadline": "2026-10-03",
+        "pp": 1.0,
+        "status_id": 3,
+        "macro_sprint_id": 1,
+        "sprint_id": 1,
+        "comment": null
+      },
+      {
+        "id": 11,
+        "name": "ТПО22 - распознать картинки в конце 2-го модуля",
+        "description": "Модуль 2, слайды 69 и дальше",
+        "epic_id": 3,
+        "role_id": 3,
+        "subrole_id": 1,
+        "p1": "A",
+        "p2": 5,
+        "deadline": "2026-10-03",
+        "pp": 1.0,
+        "status_id": 1,
+        "macro_sprint_id": 1,
+        "sprint_id": 1,
+        "comment": null
+      },
+      {
+        "id": 12,
+        "name": "ТПО22 - посмотреть, что можно улучшить в модуле 3",
+        "description": "Посмотртеть презентацию, исправить формулировки, если требуется. Добавить пару слайдов по теме: \"Создание условий работы в команде\"",
+        "epic_id": 3,
+        "role_id": 3,
+        "subrole_id": 1,
+        "p1": "B",
+        "p2": null,
+        "deadline": "2026-10-03",
+        "pp": 1.0,
+        "status_id": 1,
+        "macro_sprint_id": 1,
+        "sprint_id": 1,
+        "comment": null
+      },
+      {
+        "id": 13,
+        "name": "ТПО22 - посмотреть, что можно улучшить в модуле 4",
+        "description": "1. Вспомнить, что за метод FMEA, проверить слайды этой темы и задание. 2. Проверить остальные слайды.",
+        "epic_id": 3,
+        "role_id": 3,
+        "subrole_id": 1,
+        "p1": "B",
+        "p2": null,
+        "deadline": "2026-10-03",
+        "pp": 1.0,
+        "status_id": 1,
+        "macro_sprint_id": 1,
+        "sprint_id": 1,
+        "comment": null
+      },
+      {
+        "id": 14,
+        "name": "ТПО22 - расписать тайминг по всем темам и заданиям",
+        "description": null,
+        "epic_id": 3,
+        "role_id": 3,
+        "subrole_id": 1,
+        "p1": "A",
+        "p2": 7,
+        "deadline": "2026-10-03",
+        "pp": 1.0,
+        "status_id": 1,
+        "macro_sprint_id": 1,
+        "sprint_id": 1,
+        "comment": null
+      },
+      {
+        "id": 15,
+        "name": "ТПО22 - приоритизировать задачи по подготовке",
+        "description": null,
+        "epic_id": 3,
+        "role_id": 3,
+        "subrole_id": 1,
+        "p1": "A",
+        "p2": null,
+        "deadline": "2026-10-03",
+        "pp": 1.0,
+        "status_id": 3,
+        "macro_sprint_id": 1,
+        "sprint_id": 1,
+        "comment": null
+      }
+    ],
+    "actions": [
+      {
+        "id": 1,
+        "name": "Выполнение задачи ТПО22 - подготовка к занятию - декомпозиция",
+        "description": "Разобрал, какие задачи надо сделать по модулю 2.",
+        "date": "2026-10-03",
+        "pp": null,
+        "start_time": "12:30",
+        "end_time": "13:11",
+        "duration": null,
+        "task_id": 3,
+        "epic_id": 3,
+        "role_id": 3,
+        "subrole_id": 1,
+        "status_id": 2
+      },
+      {
+        "id": 2,
+        "name": "Выполнение задачи ТПО22 - подготовка к занятию - декомпозиция",
+        "description": "Разобрал, какие задачи надо сделать по модулям 3, 4",
+        "date": "2026-10-03",
+        "pp": null,
+        "start_time": "13:57",
+        "end_time": "14:30",
+        "duration": null,
+        "task_id": 3,
+        "epic_id": 3,
+        "role_id": 3,
+        "subrole_id": 1,
+        "status_id": 4
+      },
+      {
+        "id": 3,
+        "name": "Выполнение задачи ТПО22 - приоритизировать задачи по подготовке",
+        "description": "Расставил приоритеты по всем задачам: разбил на A и B и по всем приоритетам A расставил ещё числа.",
+        "date": "2026-10-03",
+        "pp": null,
+        "start_time": "14:32",
+        "end_time": "14:45",
+        "duration": null,
+        "task_id": 15,
+        "epic_id": 3,
+        "role_id": 3,
+        "subrole_id": 1,
+        "status_id": 4
+      },
+      {
+        "id": 4,
+        "name": "Выполнение задачи ТПО22 - практическое задание - приём на работу",
+        "description": "Работал с нейросетью: разрабатывал условия задания",
+        "date": "2026-10-03",
+        "pp": null,
+        "start_time": "15:02",
+        "end_time": "15:57",
+        "duration": null,
+        "task_id": 10,
+        "epic_id": 3,
+        "role_id": 3,
+        "subrole_id": 1,
+        "status_id": 2
+      },
+      {
+        "id": 5,
+        "name": "Выполнение задачи ТПО22 - практическое задание - приём на работу",
+        "description": "Разработал условия и завайбкодил распределение между командами: https://slqa.ru/tools/job-interview/",
+        "date": "2026-10-03",
+        "pp": null,
+        "start_time": "16:05",
+        "end_time": "18:25",
+        "duration": null,
+        "task_id": 10,
+        "epic_id": 3,
+        "role_id": 3,
+        "subrole_id": 1,
+        "status_id": 3
+      },
+      {
+        "id": 6,
+        "name": "Выполнение задачи ТПО22 - практическое задание - приём на работу",
+        "description": "Обновил слайды - доделал всё",
+        "date": "2026-10-03",
+        "pp": null,
+        "start_time": "18:30",
+        "end_time": "18:39",
+        "duration": null,
+        "task_id": 10,
+        "epic_id": 3,
+        "role_id": 3,
+        "subrole_id": 1,
+        "status_id": 4
+      },
+      {
+        "id": 7,
+        "name": "Выполнение задачи ТПО22 - проверить домашние задания",
+        "description": "Проверил 2 присланных домашних задания. Написал комментарии.",
+        "date": "2026-10-03",
+        "pp": null,
+        "start_time": "19:50",
+        "end_time": "21:00",
+        "duration": null,
+        "task_id": 4,
+        "epic_id": 3,
+        "role_id": 3,
+        "subrole_id": 1,
+        "status_id": 4
+      },
+      {
+        "id": 8,
+        "name": "Выполнение задачи ТПО22 - добавить несколько описаний рисков",
+        "description": null,
+        "date": "2026-10-03",
+        "pp": null,
+        "start_time": "23:13",
+        "end_time": "23:42",
+        "duration": null,
+        "task_id": 5,
+        "epic_id": 3,
+        "role_id": 3,
+        "subrole_id": 1,
+        "status_id": 4
+      }
+    ],
+    "statuses": [
+      {
+        "id": 1,
+        "name": "Backlog"
+      },
+      {
+        "id": 2,
+        "name": "Active"
+      },
+      {
+        "id": 3,
+        "name": "Passed"
+      },
+      {
+        "id": 4,
+        "name": "Failed"
+      }
+    ],
+    "action_statuses": [
+      {
+        "id": 1,
+        "name": "В работе"
+      },
+      {
+        "id": 2,
+        "name": "Начал задачу"
+      },
+      {
+        "id": 3,
+        "name": "Продолжил задачу"
+      },
+      {
+        "id": 4,
+        "name": "Завершил задачу"
+      },
+      {
+        "id": 5,
+        "name": "Без задачи"
+      }
+    ],
+    "p1_levels": [
+      {
+        "id": 1,
+        "name": "A"
+      },
+      {
+        "id": 2,
+        "name": "B"
+      },
+      {
+        "id": 3,
+        "name": "C"
+      },
+      {
+        "id": 4,
+        "name": "D"
+      },
+      {
+        "id": 5,
+        "name": "E"
+      }
+    ],
+    "settings": [
+      {
+        "key": "action_statuses.initialized",
+        "value": "1"
+      },
+      {
+        "key": "p1_levels.initialized",
+        "value": "1"
+      },
+      {
+        "key": "pomodoro.per_day",
+        "value": "8.0"
+      },
+      {
+        "key": "roles.initialized",
+        "value": "1"
+      },
+      {
+        "key": "statuses.initialized",
+        "value": "1"
+      },
+      {
+        "key": "ui.columns.actions",
+        "value": "{\"date\": 84, \"start_time\": 49, \"end_time\": 49, \"duration\": 40, \"pp\": 40, \"name\": 501, \"description\": 481, \"task_name\": 346, \"epic_name\": 311, \"role_name\": 222, \"subrole_name\": 150, \"status_name\": 120}"
+      },
+      {
+        "key": "ui.columns.epics",
+        "value": "{\"name\": 207, \"goal\": 338, \"role_name\": 131, \"subrole_name\": 94, \"deadline\": 87, \"status_name\": 71, \"macro_code\": 62, \"comment\": 501, \"priority\": 50}"
+      },
+      {
+        "key": "ui.columns.tasks",
+        "value": "{\"pf\": 80, \"name\": 529, \"epic_name\": 315, \"role_name\": 275, \"subrole_name\": 150, \"deadline\": 100, \"p1\": 50, \"p2\": 50, \"pp\": 50, \"status_name\": 90, \"macro_code\": 90, \"sprint_code\": 70, \"comment\": 220}"
+      }
+    ]
+  }
+}

@@ -16,7 +16,8 @@
     "02-main.md",
     "03-regular.md",
     "pr-dashboard.xlsx.json",
-    "00-inbox.md"
+    "00-inbox.md",
+    "pr_v01_export.json"
   ],
   "ignored_files": [
     "02-cs.md",
