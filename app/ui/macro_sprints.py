@@ -6,7 +6,8 @@ from datetime import datetime
 
 from db import db
 from ui.widgets import (CalendarPopup, ScrollableTable,
-                        ask_unsaved_changes, EditableCriteriaList)
+                        ask_unsaved_changes, EditableCriteriaList,
+                        setup_vertical_paned)
 
 COLUMNS = [
     {"key": "code",        "title": "Code",   "width": 90,  "wrap": False},
@@ -39,11 +40,12 @@ class MacroSprintsTab(ttk.Frame):
         self._crit_statuses: list[dict] = []
         self._crit_status_by_name: dict[str, int] = {}
 
+        self._save_ui_state_impl = None
+
         self._build_ui()
         self.refresh()
         self._set_snapshot()
 
-    # ---------- UI ----------
     def _build_ui(self):
         self._statuses = db.list_statuses()
         self._status_by_name = {s["name"]: s["id"] for s in self._statuses}
@@ -57,11 +59,25 @@ class MacroSprintsTab(ttk.Frame):
         ttk.Button(btns, text="Сохранить", command=self._on_save_clicked).pack(side="left", padx=6)
         ttk.Button(btns, text="Удалить",   command=self._delete).pack(side="left")
         ttk.Button(btns, text="Обновить",  command=self._on_refresh_clicked).pack(side="right")
+        btns.pack(side="bottom", fill="x")
 
-        # ---- Двухколоночный блок: Запись | Критерии ----
-        two_col = ttk.Frame(self)
+        # ---- PanedWindow: таблица сверху, форма снизу ----
+        self._paned, self._save_ui_state_impl = setup_vertical_paned(
+            self, "ui.sash.macro_sprints"
+        )
+        self.table = ScrollableTable(self._paned, COLUMNS,
+                                     on_select=self._on_table_select,
+                                     settings_key="ui.columns.macro_sprints")
+        self._paned.add(self.table, weight=2)
+        self._bottom = ttk.Frame(self._paned)
+        self._paned.add(self._bottom, weight=1)
+
+        # ---- Внутри bottom: two_col ----
+        two_col = ttk.Frame(self._bottom)
+        two_col.pack(fill="both", expand=True, pady=(8, 0))
         two_col.columnconfigure(0, weight=1, uniform="f")
         two_col.columnconfigure(1, weight=1, uniform="f")
+        two_col.rowconfigure(0, weight=1)
 
         # Форма — слева
         form = ttk.LabelFrame(two_col, text="Запись", padding=8)
@@ -132,14 +148,12 @@ class MacroSprintsTab(ttk.Frame):
                                             command=self.criteria_list.add_item)
         self.btn_add_criterion.pack(anchor="w", pady=(6, 0))
 
-        # ---- Таблица ----
-        self.table = ScrollableTable(self, COLUMNS, on_select=self._on_table_select,
-                                     settings_key="ui.columns.macro_sprints")
-
-        # ---- Упаковка снизу вверх ----
-        btns.pack(side="bottom", fill="x")
-        two_col.pack(side="bottom", fill="both", expand=False, pady=(8, 0))
-        self.table.pack(side="top", fill="both", expand=True)
+    # ---------- внешний API для сохранения UI ----------
+    def save_ui_state(self):
+        if self._save_ui_state_impl:
+            self._save_ui_state_impl()
+        if hasattr(self, "table") and hasattr(self.table, "save_ui_state"):
+            self.table.save_ui_state()
 
     # ---------- снимок ----------
     def _form_state(self) -> dict:
@@ -207,7 +221,6 @@ class MacroSprintsTab(ttk.Frame):
         self.var_priority.set("" if src["priority"] is None else str(src["priority"]))
         self._set_goal(src["goal"])
 
-        # загрузка критериев
         crit = db.list_macro_sprint_criteria(sid)
         items = [{
             "n":           c["n"],
@@ -239,7 +252,6 @@ class MacroSprintsTab(ttk.Frame):
         self.table.clear_selection()
         self._set_snapshot()
 
-    # ---------- выбор в таблице ----------
     def _on_table_select(self, data):
         new_id = data["id"]
         if new_id == self.current_id:
@@ -261,7 +273,6 @@ class MacroSprintsTab(ttk.Frame):
         else:
             self.table.select_iid(str(self.current_id))
 
-    # ---------- кнопки ----------
     def _new(self):
         if self._is_dirty():
             action = ask_unsaved_changes(parent=self.winfo_toplevel())
@@ -276,13 +287,11 @@ class MacroSprintsTab(ttk.Frame):
         self._save()
 
     def _collect_criteria_for_db(self) -> list[dict] | None:
-        """Возвращает подготовленный список критериев или None при ошибке."""
         raw = self.criteria_list.get_items()
         result = []
         for c in raw:
             text = c["text"]
             if not text:
-                # пропускаем полностью пустые строки
                 if not c["status_name"] and not c["comment"]:
                     continue
                 messagebox.showwarning("Валидация",
@@ -417,7 +426,6 @@ class MacroSprintsTab(ttk.Frame):
                     return
         self.refresh()
 
-    # ---------- календарь ----------
     def _open_cal(self, var: tk.StringVar):
         initial = None
         try:

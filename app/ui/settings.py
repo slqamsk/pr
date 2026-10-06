@@ -49,3 +49,9 @@ class SettingsTab(ttk.Frame):
             if not tab.confirm_leave():
                 return False
         return True
+
+    def save_ui_state(self):
+        if hasattr(self.tab_roles, "save_ui_state"):
+            self.tab_roles.save_ui_state()
+        if hasattr(self.tab_subroles, "save_ui_state"):
+            self.tab_subroles.save_ui_state()

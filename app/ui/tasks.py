@@ -6,7 +6,8 @@ from datetime import datetime
 
 from db import db
 from ui.widgets import (CalendarPopup, ScrollableTable,
-                        ask_unsaved_changes, SqlFilterDialog)
+                        ask_unsaved_changes, SqlFilterDialog,
+                        setup_vertical_paned)
 from ui.pf import compute_pf
 
 COLUMNS = [
@@ -29,21 +30,21 @@ _SQL_MODE_ALL = "Все записи"
 _SQL_MODE_FILTER = "Применить фильтр"
 
 _TASK_BASE_SQL = (
-    "SELECT t.id, t.name, t.description, "
-    "       t.epic_id, e.name AS epic_name, "
-    "       t.role_id, r.name AS role_name, "
-    "       t.subrole_id, sr.name AS subrole_name, "
-    "       t.p1, t.p2, t.deadline, t.pp, "
-    "       t.status_id, st.name AS status_name, "
-    "       t.macro_sprint_id, m.code AS macro_code, "
-    "       t.sprint_id, sp.code AS sprint_code, "
-    "       t.comment, t.pf "
-    "FROM tasks t "
-    "LEFT JOIN epics e ON e.id = t.epic_id "
-    "LEFT JOIN roles r ON r.id = t.role_id "
-    "LEFT JOIN subroles sr ON sr.id = t.subrole_id "
-    "JOIN statuses st ON st.id = t.status_id "
-    "LEFT JOIN macro_sprints m ON m.id = t.macro_sprint_id "
+    "SELECT t.id, t.name, t.description,\n"
+    "       t.epic_id, e.name AS epic_name,\n"
+    "       t.role_id, r.name AS role_name,\n"
+    "       t.subrole_id, sr.name AS subrole_name,\n"
+    "       t.p1, t.p2, t.deadline, t.pp,\n"
+    "       t.status_id, st.name AS status_name,\n"
+    "       t.macro_sprint_id, m.code AS macro_code,\n"
+    "       t.sprint_id, sp.code AS sprint_code,\n"
+    "       t.comment, t.pf\n"
+    "FROM tasks t\n"
+    "LEFT JOIN epics e ON e.id = t.epic_id\n"
+    "LEFT JOIN roles r ON r.id = t.role_id\n"
+    "LEFT JOIN subroles sr ON sr.id = t.subrole_id\n"
+    "JOIN statuses st ON st.id = t.status_id\n"
+    "LEFT JOIN macro_sprints m ON m.id = t.macro_sprint_id\n"
     "LEFT JOIN sprints sp ON sp.id = t.sprint_id"
 )
 _TASK_DEFAULT_ORDER = "ORDER BY t.pf ASC"
@@ -81,18 +82,17 @@ class TasksTab(ttk.Frame):
         self._sprints_by_code: dict[str, dict] = {}
 
         self._pf_pomodoro = 8.0
+        self._save_ui_state_impl = None
 
         self._build_ui()
         self.refresh()
         self._set_snapshot()
 
-    # ---------- UI ----------
     def _build_ui(self):
         self._statuses = db.list_statuses()
         self._status_by_name = {s["name"]: s["id"] for s in self._statuses}
         self._p1_levels = [p["name"] for p in db.list_p1_levels()]
 
-        # ---- Нижний ряд кнопок ----
         btns = ttk.Frame(self, padding=(0, 8, 0, 0))
         ttk.Button(btns, text="Новая",     command=self._new).pack(side="left")
         ttk.Button(btns, text="Сохранить", command=self._on_save_clicked).pack(side="left", padx=6)
@@ -106,9 +106,26 @@ class TasksTab(ttk.Frame):
                                          state="readonly", width=20)
         self.cmb_sql_mode.pack(side="right", padx=(0, 6))
         self.cmb_sql_mode.bind("<<ComboboxSelected>>", self._on_sql_mode_changed)
+        btns.pack(side="bottom", fill="x")
 
-        # ---- Основная форма ----
-        body = ttk.Frame(self)
+        # PanedWindow
+        self._paned, self._save_ui_state_impl = setup_vertical_paned(
+            self, "ui.sash.tasks"
+        )
+        self.table = ScrollableTable(self._paned, COLUMNS,
+                                     on_select=self._on_table_select,
+                                     settings_key="ui.columns.tasks")
+        self._paned.add(self.table, weight=2)
+        self._bottom = ttk.Frame(self._paned)
+        self._paned.add(self._bottom, weight=1)
+
+        self.var_table_status = tk.StringVar(value="")
+        self.lbl_table_status = tk.Label(self, textvariable=self.var_table_status,
+                                         anchor="w", padx=8, pady=2, fg="#606060")
+        self.lbl_table_status.pack(side="bottom", fill="x", padx=8)
+
+        body = ttk.Frame(self._bottom)
+        body.pack(fill="both", expand=True, pady=(8, 0))
         body.columnconfigure(0, weight=1, uniform="f")
         body.columnconfigure(1, weight=1, uniform="f")
 
@@ -245,24 +262,15 @@ class TasksTab(ttk.Frame):
         self.txt_comment.configure(yscrollcommand=csb.set)
         csb.grid(row=0, column=1, sticky="ns")
 
-        # Таблица + статусная строка
-        self.table = ScrollableTable(self, COLUMNS, on_select=self._on_table_select,
-                                     settings_key="ui.columns.tasks")
-
-        self.var_table_status = tk.StringVar(value="")
-        self.lbl_table_status = tk.Label(self, textvariable=self.var_table_status,
-                                         anchor="w", padx=8, pady=2, fg="#606060")
-
-        # ---- Упаковка снизу вверх ----
-        btns.pack(side="bottom", fill="x")
-        body.pack(side="bottom", fill="x", pady=(8, 0))
-        self.lbl_table_status.pack(side="bottom", fill="x", padx=8)
-        self.table.pack(side="top", fill="both", expand=True)
-
-        # Пересчёт PF на лету
         for v in (self.var_p1, self.var_p2, self.var_deadline,
                   self.var_pp, self.var_status):
             v.trace_add("write", lambda *_: self._recompute_pf())
+
+    def save_ui_state(self):
+        if self._save_ui_state_impl:
+            self._save_ui_state_impl()
+        if hasattr(self, "table") and hasattr(self.table, "save_ui_state"):
+            self.table.save_ui_state()
 
     # ---------- PF ----------
     def _recompute_pf(self):
@@ -295,7 +303,6 @@ class TasksTab(ttk.Frame):
         self.var_pf_display.set(f"{pf:.2f}")
 
     def _recompute_all_pf(self):
-        """Пересчитать PF всех задач и записать в БД."""
         if not hasattr(self, "_pf_pomodoro"):
             self._pf_pomodoro = db.get_pomodoro_per_day()
         data = db.list_tasks_pf_data()
@@ -439,8 +446,7 @@ class TasksTab(ttk.Frame):
         return db.get_setting("ui.sql_filter.tasks.where", "") or ""
 
     def _get_saved_order(self) -> str | None:
-        v = db.get_setting("ui.sql_filter.tasks.order_by")
-        return v  # None, если ещё не открывали
+        return db.get_setting("ui.sql_filter.tasks.order_by")
 
     def _get_effective_order(self) -> str:
         v = self._get_saved_order()
@@ -454,7 +460,7 @@ class TasksTab(ttk.Frame):
             parts.append(where)
         if order:
             parts.append(order)
-        return " ".join(parts)
+        return "\n".join(parts)
 
     def _load_table(self):
         mode = self._get_sql_mode()
@@ -600,7 +606,6 @@ class TasksTab(ttk.Frame):
             return self._save()
         return True
 
-    # ---------- данные ----------
     def refresh(self):
         self._pf_pomodoro = db.get_pomodoro_per_day()
         self._recompute_all_pf()
@@ -716,7 +721,6 @@ class TasksTab(ttk.Frame):
         self._recompute_pf()
         self._set_snapshot()
 
-    # ---------- выбор в таблице ----------
     def _on_table_select(self, data):
         new_id = data["id"]
         if new_id == self.current_id:
@@ -738,7 +742,6 @@ class TasksTab(ttk.Frame):
         else:
             self.table.select_iid(str(self.current_id))
 
-    # ---------- кнопки ----------
     def _new(self):
         if self._is_dirty():
             action = ask_unsaved_changes(parent=self.winfo_toplevel())
@@ -909,7 +912,6 @@ class TasksTab(ttk.Frame):
                                        parent=self.winfo_toplevel())
             return False
 
-        # пересчёт PF только для текущей задачи
         pf = compute_pf(self.var_status.get().strip(), p1, p2, deadline, pp,
                         pomodoro_per_day=self._pf_pomodoro)
         try:
@@ -957,7 +959,6 @@ class TasksTab(ttk.Frame):
                     return
         self.refresh()
 
-    # ---------- workflow: Делать ----------
     def _on_do_clicked(self):
         if self.current_id is None:
             messagebox.showinfo("Делать",
@@ -978,7 +979,6 @@ class TasksTab(ttk.Frame):
             return
         self.on_make_action(task)
 
-    # ---------- календарь ----------
     def _open_cal(self, var: tk.StringVar):
         initial = None
         try:

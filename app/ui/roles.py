@@ -4,7 +4,7 @@ from tkinter import ttk, messagebox
 import sqlite3
 
 from db import db
-from ui.widgets import ScrollableTable, ask_unsaved_changes
+from ui.widgets import ScrollableTable, ask_unsaved_changes, setup_vertical_paned
 
 COLUMNS = [
     {"key": "id",   "title": "№",        "width": 70,  "wrap": False},
@@ -18,18 +18,31 @@ class RolesTab(ttk.Frame):
         self.current_id: int | None = None
         self._raw_by_id: dict[int, dict] = {}
         self._snapshot: dict | None = None
+        self._save_ui_state_impl = None
         self._build_ui()
         self.refresh()
         self._set_snapshot()
 
-    # ---------- UI ----------
     def _build_ui(self):
-        self.table = ScrollableTable(self, COLUMNS, on_select=self._on_table_select,
-                                     settings_key="ui.columns.roles")
-        self.table.pack(fill="both", expand=True)
+        btns = ttk.Frame(self, padding=(0, 8, 0, 0))
+        ttk.Button(btns, text="Новая",     command=self._new).pack(side="left")
+        ttk.Button(btns, text="Сохранить", command=self._on_save_clicked).pack(side="left", padx=6)
+        ttk.Button(btns, text="Удалить",   command=self._delete).pack(side="left")
+        ttk.Button(btns, text="Обновить",  command=self._on_refresh_clicked).pack(side="right")
+        btns.pack(side="bottom", fill="x")
 
-        form = ttk.LabelFrame(self, text="Запись", padding=8)
-        form.pack(fill="x", pady=(8, 0))
+        self._paned, self._save_ui_state_impl = setup_vertical_paned(
+            self, "ui.sash.roles"
+        )
+        self.table = ScrollableTable(self._paned, COLUMNS,
+                                     on_select=self._on_table_select,
+                                     settings_key="ui.columns.roles")
+        self._paned.add(self.table, weight=2)
+        self._bottom = ttk.Frame(self._paned)
+        self._paned.add(self._bottom, weight=1)
+
+        form = ttk.LabelFrame(self._bottom, text="Запись", padding=8)
+        form.pack(fill="both", expand=True, pady=(8, 0))
         form.columnconfigure(1, weight=1)
 
         self.var_id   = tk.StringVar()
@@ -43,14 +56,12 @@ class RolesTab(ttk.Frame):
         ttk.Entry(form, textvariable=self.var_name)\
             .grid(row=1, column=1, sticky="ew", pady=2)
 
-        btns = ttk.Frame(self, padding=(0, 8, 0, 0))
-        btns.pack(fill="x")
-        ttk.Button(btns, text="Новая",     command=self._new).pack(side="left")
-        ttk.Button(btns, text="Сохранить", command=self._on_save_clicked).pack(side="left", padx=6)
-        ttk.Button(btns, text="Удалить",   command=self._delete).pack(side="left")
-        ttk.Button(btns, text="Обновить",  command=self._on_refresh_clicked).pack(side="right")
+    def save_ui_state(self):
+        if self._save_ui_state_impl:
+            self._save_ui_state_impl()
+        if hasattr(self, "table") and hasattr(self.table, "save_ui_state"):
+            self.table.save_ui_state()
 
-    # ---------- снимок ----------
     def _form_state(self) -> dict:
         return {
             "id":   self.var_id.get().strip(),
@@ -78,7 +89,6 @@ class RolesTab(ttk.Frame):
             return self._save()
         return True
 
-    # ---------- данные ----------
     def refresh(self):
         raw = db.list_roles()
         self._raw_by_id = {r["id"]: r for r in raw}
@@ -107,7 +117,6 @@ class RolesTab(ttk.Frame):
         self.table.clear_selection()
         self._set_snapshot()
 
-    # ---------- выбор в таблице ----------
     def _on_table_select(self, data):
         new_id = data["id"]
         if new_id == self.current_id:
@@ -129,7 +138,6 @@ class RolesTab(ttk.Frame):
         else:
             self.table.select_iid(str(self.current_id))
 
-    # ---------- кнопки ----------
     def _new(self):
         if self._is_dirty():
             action = ask_unsaved_changes(parent=self.winfo_toplevel())

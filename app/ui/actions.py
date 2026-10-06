@@ -6,7 +6,8 @@ from datetime import datetime
 
 from db import db
 from ui.widgets import (CalendarPopup, ScrollableTable,
-                        ask_unsaved_changes, SqlFilterDialog)
+                        ask_unsaved_changes, SqlFilterDialog,
+                        setup_vertical_paned)
 
 COLUMNS = [
     {"key": "date",        "title": "Date",      "width": 90,  "wrap": False},
@@ -33,18 +34,18 @@ _SQL_MODE_ALL = "Все записи"
 _SQL_MODE_FILTER = "Применить фильтр"
 
 _ACTION_BASE_SQL = (
-    "SELECT a.id, a.name, a.description, a.date, a.pp, "
-    "       a.start_time, a.end_time, a.duration, "
-    "       a.task_id, t.name AS task_name, "
-    "       a.epic_id, e.name AS epic_name, "
-    "       a.role_id, r.name AS role_name, "
-    "       a.subrole_id, sr.name AS subrole_name, "
-    "       a.status_id, st.name AS status_name "
-    "FROM actions a "
-    "LEFT JOIN tasks t ON t.id = a.task_id "
-    "LEFT JOIN epics e ON e.id = a.epic_id "
-    "LEFT JOIN roles r ON r.id = a.role_id "
-    "LEFT JOIN subroles sr ON sr.id = a.subrole_id "
+    "SELECT a.id, a.name, a.description, a.date, a.pp,\n"
+    "       a.start_time, a.end_time, a.duration,\n"
+    "       a.task_id, t.name AS task_name,\n"
+    "       a.epic_id, e.name AS epic_name,\n"
+    "       a.role_id, r.name AS role_name,\n"
+    "       a.subrole_id, sr.name AS subrole_name,\n"
+    "       a.status_id, st.name AS status_name\n"
+    "FROM actions a\n"
+    "LEFT JOIN tasks t ON t.id = a.task_id\n"
+    "LEFT JOIN epics e ON e.id = a.epic_id\n"
+    "LEFT JOIN roles r ON r.id = a.role_id\n"
+    "LEFT JOIN subroles sr ON sr.id = a.subrole_id\n"
     "JOIN action_statuses st ON st.id = a.status_id"
 )
 _ACTION_DEFAULT_ORDER = "ORDER BY a.date DESC, a.start_time IS NULL, a.start_time DESC, a.id DESC"
@@ -170,16 +171,16 @@ class ActionsTab(ttk.Frame):
         self._epics_by_name: dict[str, dict] = {}
         self._tasks_by_name: dict[str, dict] = {}
 
+        self._save_ui_state_impl = None
+
         self._build_ui()
         self.refresh()
         self._set_snapshot()
 
-    # ---------- UI ----------
     def _build_ui(self):
         self._statuses = db.list_action_statuses()
         self._status_by_name = {s["name"]: s["id"] for s in self._statuses}
 
-        # ---- Нижний ряд кнопок ----
         btns = ttk.Frame(self, padding=(0, 8, 0, 0))
         ttk.Button(btns, text="Новая",     command=self._new).pack(side="left")
         ttk.Button(btns, text="Сохранить", command=self._on_save_clicked).pack(side="left", padx=6)
@@ -193,9 +194,25 @@ class ActionsTab(ttk.Frame):
                                          state="readonly", width=20)
         self.cmb_sql_mode.pack(side="right", padx=(0, 6))
         self.cmb_sql_mode.bind("<<ComboboxSelected>>", self._on_sql_mode_changed)
+        btns.pack(side="bottom", fill="x")
 
-        # ---- Основная форма ----
-        body = ttk.Frame(self)
+        self._paned, self._save_ui_state_impl = setup_vertical_paned(
+            self, "ui.sash.actions"
+        )
+        self.table = ScrollableTable(self._paned, COLUMNS,
+                                     on_select=self._on_table_select,
+                                     settings_key="ui.columns.actions")
+        self._paned.add(self.table, weight=2)
+        self._bottom = ttk.Frame(self._paned)
+        self._paned.add(self._bottom, weight=1)
+
+        self.var_table_status = tk.StringVar(value="")
+        self.lbl_table_status = tk.Label(self, textvariable=self.var_table_status,
+                                         anchor="w", padx=8, pady=2, fg="#606060")
+        self.lbl_table_status.pack(side="bottom", fill="x", padx=8)
+
+        body = ttk.Frame(self._bottom)
+        body.pack(fill="both", expand=True, pady=(8, 0))
         body.columnconfigure(0, weight=1, uniform="f")
         body.columnconfigure(1, weight=1, uniform="f")
 
@@ -325,22 +342,14 @@ class ActionsTab(ttk.Frame):
                      state="readonly", width=20)\
             .grid(row=0, column=1, sticky="w", pady=2)
 
-        # ---- Таблица ----
-        self.table = ScrollableTable(self, COLUMNS, on_select=self._on_table_select,
-                                     settings_key="ui.columns.actions")
-
-        self.var_table_status = tk.StringVar(value="")
-        self.lbl_table_status = tk.Label(self, textvariable=self.var_table_status,
-                                         anchor="w", padx=8, pady=2, fg="#606060")
-
-        # ---- Упаковка снизу вверх ----
-        btns.pack(side="bottom", fill="x")
-        body.pack(side="bottom", fill="x", pady=(8, 0))
-        self.lbl_table_status.pack(side="bottom", fill="x", padx=8)
-        self.table.pack(side="top", fill="both", expand=True)
-
         for v in (self.var_pp, self.var_start, self.var_end, self.var_duration):
             v.trace_add("write", lambda *_: self._recompute_view())
+
+    def save_ui_state(self):
+        if self._save_ui_state_impl:
+            self._save_ui_state_impl()
+        if hasattr(self, "table") and hasattr(self.table, "save_ui_state"):
+            self.table.save_ui_state()
 
     # ---------- SQL-фильтр ----------
     def _get_sql_mode(self) -> str:
@@ -364,7 +373,7 @@ class ActionsTab(ttk.Frame):
             parts.append(where)
         if order:
             parts.append(order)
-        return " ".join(parts)
+        return "\n".join(parts)
 
     def _load_table(self):
         mode = self._get_sql_mode()
@@ -523,7 +532,6 @@ class ActionsTab(ttk.Frame):
         if not keep_value:
             self.var_subrole.set("")
 
-    # ---------- обработчики ----------
     def _on_epic_changed(self, _e=None):
         epic_name = self.var_epic.get().strip()
         if not epic_name:
@@ -613,7 +621,6 @@ class ActionsTab(ttk.Frame):
         role_id = self._roles_by_display.get(role_display) if role_display else None
         self._refresh_subrole_combo(role_id, keep_value=False)
 
-    # ---------- снимок ----------
     def _form_state(self) -> dict:
         return {
             "name":        self.var_name.get().strip(),
@@ -653,7 +660,6 @@ class ActionsTab(ttk.Frame):
             return self._save()
         return True
 
-    # ---------- данные ----------
     def refresh(self):
         self._refresh_role_combo()
         self._refresh_epic_combo()
@@ -755,7 +761,6 @@ class ActionsTab(ttk.Frame):
         self._recompute_view()
         self._set_snapshot()
 
-    # ---------- выбор в таблице ----------
     def _on_table_select(self, data):
         new_id = data["id"]
         if new_id == self.current_id:
@@ -777,7 +782,6 @@ class ActionsTab(ttk.Frame):
         else:
             self.table.select_iid(str(self.current_id))
 
-    # ---------- кнопки ----------
     def _new(self):
         if self._is_dirty():
             action = ask_unsaved_changes(parent=self.winfo_toplevel())
@@ -964,7 +968,6 @@ class ActionsTab(ttk.Frame):
                     return
         self.refresh()
 
-    # ---------- workflow ----------
     def _on_start_clicked(self):
         if self.current_id is None:
             messagebox.showinfo("Начать",
@@ -1046,7 +1049,6 @@ class ActionsTab(ttk.Frame):
 
         self._recompute_view()
 
-    # ---------- календарь ----------
     def _open_cal(self, var: tk.StringVar):
         initial = None
         try:

@@ -5,7 +5,8 @@ import sqlite3
 from datetime import datetime
 
 from db import db
-from ui.widgets import CalendarPopup, ScrollableTable, ask_unsaved_changes
+from ui.widgets import (CalendarPopup, ScrollableTable, ask_unsaved_changes,
+                        setup_vertical_paned)
 
 COLUMNS = [
     {"key": "name",         "title": "Epic Name",   "width": 200, "wrap": True},
@@ -49,22 +50,36 @@ class EpicsTab(ttk.Frame):
 
         self._macros_by_code: dict[str, int] = {}
 
+        self._save_ui_state_impl = None
+
         self._build_ui()
         self.refresh()
         self._set_snapshot()
 
-    # ---------- UI ----------
     def _build_ui(self):
         self._statuses = db.list_statuses()
         self._status_by_name = {s["name"]: s["id"] for s in self._statuses}
         self._status_by_id = {s["id"]: s["name"] for s in self._statuses}
 
-        self.table = ScrollableTable(self, COLUMNS, on_select=self._on_table_select,
-                                     settings_key="ui.columns.epics")
-        self.table.pack(fill="both", expand=True)
+        btns = ttk.Frame(self, padding=(0, 8, 0, 0))
+        ttk.Button(btns, text="Новая",     command=self._new).pack(side="left")
+        ttk.Button(btns, text="Сохранить", command=self._on_save_clicked).pack(side="left", padx=6)
+        ttk.Button(btns, text="Удалить",   command=self._delete).pack(side="left")
+        ttk.Button(btns, text="Обновить",  command=self._on_refresh_clicked).pack(side="right")
+        btns.pack(side="bottom", fill="x")
 
-        form = ttk.LabelFrame(self, text="Запись", padding=8)
-        form.pack(fill="x", pady=(8, 0))
+        self._paned, self._save_ui_state_impl = setup_vertical_paned(
+            self, "ui.sash.epics"
+        )
+        self.table = ScrollableTable(self._paned, COLUMNS,
+                                     on_select=self._on_table_select,
+                                     settings_key="ui.columns.epics")
+        self._paned.add(self.table, weight=2)
+        self._bottom = ttk.Frame(self._paned)
+        self._paned.add(self._bottom, weight=1)
+
+        form = ttk.LabelFrame(self._bottom, text="Запись", padding=8)
+        form.pack(fill="both", expand=True, pady=(8, 0))
         form.columnconfigure(1, weight=1)
 
         self.var_name       = tk.StringVar()
@@ -145,14 +160,12 @@ class EpicsTab(ttk.Frame):
         self.txt_comment.configure(yscrollcommand=csb.set)
         csb.grid(row=0, column=1, sticky="ns")
 
-        btns = ttk.Frame(self, padding=(0, 8, 0, 0))
-        btns.pack(fill="x")
-        ttk.Button(btns, text="Новая",     command=self._new).pack(side="left")
-        ttk.Button(btns, text="Сохранить", command=self._on_save_clicked).pack(side="left", padx=6)
-        ttk.Button(btns, text="Удалить",   command=self._delete).pack(side="left")
-        ttk.Button(btns, text="Обновить",  command=self._on_refresh_clicked).pack(side="right")
+    def save_ui_state(self):
+        if self._save_ui_state_impl:
+            self._save_ui_state_impl()
+        if hasattr(self, "table") and hasattr(self.table, "save_ui_state"):
+            self.table.save_ui_state()
 
-    # ---------- роль/подроль ----------
     def _on_role_selected(self, _event=None):
         role_display = self.var_role.get().strip()
         role_id = self._roles_by_display.get(role_display)
@@ -178,7 +191,6 @@ class EpicsTab(ttk.Frame):
         self._macros_by_code = {m["code"]: m["id"] for m in brief}
         self.cmb_macro.configure(values=[""] + list(self._macros_by_code.keys()))
 
-    # ---------- снимок ----------
     def _form_state(self) -> dict:
         return {
             "name":     self.var_name.get().strip(),
@@ -213,7 +225,6 @@ class EpicsTab(ttk.Frame):
             return self._save()
         return True
 
-    # ---------- данные ----------
     def refresh(self):
         self._refresh_role_combo()
         self._refresh_macro_combo()
@@ -296,7 +307,6 @@ class EpicsTab(ttk.Frame):
         self.table.clear_selection()
         self._set_snapshot()
 
-    # ---------- выбор в таблице ----------
     def _on_table_select(self, data):
         new_id = data["id"]
         if new_id == self.current_id:
@@ -318,7 +328,6 @@ class EpicsTab(ttk.Frame):
         else:
             self.table.select_iid(str(self.current_id))
 
-    # ---------- кнопки ----------
     def _new(self):
         if self._is_dirty():
             action = ask_unsaved_changes(parent=self.winfo_toplevel())
@@ -468,7 +477,6 @@ class EpicsTab(ttk.Frame):
                     return
         self.refresh()
 
-    # ---------- календарь ----------
     def _open_cal(self, var: tk.StringVar):
         initial = None
         try:

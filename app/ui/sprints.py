@@ -6,7 +6,8 @@ from datetime import datetime
 
 from db import db
 from ui.widgets import (CalendarPopup, ScrollableTable,
-                        ask_unsaved_changes, EditableCriteriaList)
+                        ask_unsaved_changes, EditableCriteriaList,
+                        setup_vertical_paned)
 
 COLUMNS = [
     {"key": "code",        "title": "Code",   "width": 90,  "wrap": False},
@@ -41,11 +42,12 @@ class SprintsTab(ttk.Frame):
 
         self._macro_by_code: dict[str, int] = {}
 
+        self._save_ui_state_impl = None
+
         self._build_ui()
         self.refresh()
         self._set_snapshot()
 
-    # ---------- UI ----------
     def _build_ui(self):
         self._statuses = db.list_statuses()
         self._status_by_name = {s["name"]: s["id"] for s in self._statuses}
@@ -53,19 +55,29 @@ class SprintsTab(ttk.Frame):
         self._crit_statuses = db.list_criterion_statuses()
         self._crit_status_by_name = {s["name"]: s["id"] for s in self._crit_statuses}
 
-        # ---- Нижний ряд кнопок ----
         btns = ttk.Frame(self, padding=(0, 8, 0, 0))
         ttk.Button(btns, text="Новая",     command=self._new).pack(side="left")
         ttk.Button(btns, text="Сохранить", command=self._on_save_clicked).pack(side="left", padx=6)
         ttk.Button(btns, text="Удалить",   command=self._delete).pack(side="left")
         ttk.Button(btns, text="Обновить",  command=self._on_refresh_clicked).pack(side="right")
+        btns.pack(side="bottom", fill="x")
 
-        # ---- Двухколоночный блок: Запись | Критерии ----
-        two_col = ttk.Frame(self)
+        self._paned, self._save_ui_state_impl = setup_vertical_paned(
+            self, "ui.sash.sprints"
+        )
+        self.table = ScrollableTable(self._paned, COLUMNS,
+                                     on_select=self._on_table_select,
+                                     settings_key="ui.columns.sprints")
+        self._paned.add(self.table, weight=2)
+        self._bottom = ttk.Frame(self._paned)
+        self._paned.add(self._bottom, weight=1)
+
+        two_col = ttk.Frame(self._bottom)
+        two_col.pack(fill="both", expand=True, pady=(8, 0))
         two_col.columnconfigure(0, weight=1, uniform="f")
         two_col.columnconfigure(1, weight=1, uniform="f")
+        two_col.rowconfigure(0, weight=1)
 
-        # Форма — слева
         form = ttk.LabelFrame(two_col, text="Запись", padding=8)
         form.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
         form.columnconfigure(1, weight=1)
@@ -122,7 +134,6 @@ class SprintsTab(ttk.Frame):
                                       values=[""], state="readonly", width=14)
         self.cmb_macro.grid(row=r, column=1, sticky="w", pady=2)
 
-        # Критерии — справа
         grp_crit = ttk.LabelFrame(two_col, text="Критерии достижения", padding=8)
         grp_crit.grid(row=0, column=1, sticky="nsew", padx=(4, 0))
 
@@ -135,16 +146,12 @@ class SprintsTab(ttk.Frame):
                                             command=self.criteria_list.add_item)
         self.btn_add_criterion.pack(anchor="w", pady=(6, 0))
 
-        # ---- Таблица ----
-        self.table = ScrollableTable(self, COLUMNS, on_select=self._on_table_select,
-                                     settings_key="ui.columns.sprints")
+    def save_ui_state(self):
+        if self._save_ui_state_impl:
+            self._save_ui_state_impl()
+        if hasattr(self, "table") and hasattr(self.table, "save_ui_state"):
+            self.table.save_ui_state()
 
-        # ---- Упаковка снизу вверх ----
-        btns.pack(side="bottom", fill="x")
-        two_col.pack(side="bottom", fill="both", expand=False, pady=(8, 0))
-        self.table.pack(side="top", fill="both", expand=True)
-
-    # ---------- снимок ----------
     def _form_state(self) -> dict:
         criteria = tuple(
             (c["n"], c["text"], c["status_name"] or "", c["comment"] or "")
@@ -181,7 +188,6 @@ class SprintsTab(ttk.Frame):
             return self._save()
         return True
 
-    # ---------- данные ----------
     def refresh(self):
         brief = db.list_macro_sprints_brief()
         self._macro_by_code = {m["code"]: m["id"] for m in brief}
@@ -245,7 +251,6 @@ class SprintsTab(ttk.Frame):
         self.table.clear_selection()
         self._set_snapshot()
 
-    # ---------- выбор в таблице ----------
     def _on_table_select(self, data):
         new_id = data["id"]
         if new_id == self.current_id:
@@ -267,7 +272,6 @@ class SprintsTab(ttk.Frame):
         else:
             self.table.select_iid(str(self.current_id))
 
-    # ---------- кнопки ----------
     def _new(self):
         if self._is_dirty():
             action = ask_unsaved_changes(parent=self.winfo_toplevel())
@@ -407,7 +411,6 @@ class SprintsTab(ttk.Frame):
                     return
         self.refresh()
 
-    # ---------- календарь ----------
     def _open_cal(self, var: tk.StringVar):
         initial = None
         try:

@@ -25,7 +25,6 @@ def _load_geometry(root) -> str | None:
     if not raw:
         return None
     try:
-        # формат: WxH+X+Y или WxH-X-Y и т.п.
         import re
         m = re.match(r"^(\d+)x(\d+)([+-]\d+)([+-]\d+)$", raw.strip())
         if not m:
@@ -34,10 +33,8 @@ def _load_geometry(root) -> str | None:
                       int(m.group(3)), int(m.group(4)))
         scr_w = root.winfo_screenwidth()
         scr_h = root.winfo_screenheight()
-        # если вылезаем за экран по позиции — оставляем размер, но не позицию
         if x < 0 or y < 0 or x > scr_w - 200 or y > scr_h - 100:
             return f"{w}x{h}"
-        # если размер больше экрана — берём по размеру экрана
         if w > scr_w - 40 or h > scr_h - 80:
             return None
         return raw.strip()
@@ -47,8 +44,6 @@ def _load_geometry(root) -> str | None:
 
 def _save_geometry(root) -> None:
     try:
-        if root.state() != "normal":
-            return
         db.set_setting(_GEOMETRY_KEY, root.geometry())
     except Exception:
         pass
@@ -127,6 +122,9 @@ def _run() -> None:
         for tab in all_tabs:
             if not tab.confirm_leave():
                 return
+        for tab in all_tabs:
+            if hasattr(tab, "save_ui_state"):
+                tab.save_ui_state()
         _save_geometry(root)
         root.destroy()
 

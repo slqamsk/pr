@@ -26,7 +26,6 @@ def ask_unsaved_changes(parent=None) -> str:
 def bind_mousewheel_recursive(widget, canvas):
     """Рекурсивно привязывает колёсико мыши на виджет и всех его детей."""
     def _on_wheel(event):
-        # delta обычно 120 на «щелчок». Отрицательный delta = вниз.
         try:
             step = -1 * int(event.delta / 120) or (-1 if event.delta > 0 else 1)
         except (ValueError, AttributeError):
@@ -43,6 +42,58 @@ def bind_mousewheel_recursive(widget, canvas):
             _bind(child)
 
     _bind(widget)
+
+
+
+def setup_vertical_paned(parent, sash_key):
+    """
+    Создаёт вертикальный PanedWindow. Возвращает (paned, save_ui_state).
+    Панели добавляются вызывающим кодом — как дочерние виджеты paned:
+
+        paned, save = setup_vertical_paned(self, "ui.sash.X")
+        table = ScrollableTable(paned, ...)
+        paned.add(table, weight=2)
+        bottom = ttk.Frame(paned)
+        paned.add(bottom, weight=1)
+
+    Позиция sash хранится в settings по ключу sash_key.
+    """
+    paned = ttk.PanedWindow(parent, orient="vertical")
+    paned.pack(fill="both", expand=True)
+
+    def _save_sash(_e=None):
+        try:
+            pos = paned.sashpos(0)
+            if pos > 0:
+                db.set_setting(sash_key, str(pos))
+        except Exception:
+            pass
+
+    def save_ui_state():
+        _save_sash()
+
+    def _apply_saved():
+        raw = db.get_setting(sash_key)
+        if not raw:
+            return
+        try:
+            pos = int(raw)
+        except (ValueError, TypeError):
+            return
+        try:
+            h = paned.winfo_height()
+            if h > 200:
+                pos = max(100, min(pos, h - 150))
+                paned.sashpos(0, pos)
+        except tk.TclError:
+            pass
+
+    parent.after(200, _apply_saved)
+    paned.bind("<ButtonRelease-1>", _save_sash)
+
+    return paned, save_ui_state
+
+
 
 
 # ============== CalendarPopup ==============
@@ -211,7 +262,6 @@ class ScrollableTable(ttk.Frame):
         self._load_widths()
         self._build()
 
-    # ---------------- сохранение ширин ----------------
     def _load_widths(self):
         if not self.settings_key:
             return
@@ -240,7 +290,11 @@ class ScrollableTable(ttk.Frame):
         except Exception:
             pass
 
-    # ---------------- построение ----------------
+    def save_ui_state(self):
+        """Вызывается при закрытии окна — на всякий случай сохраняет ширины ещё раз."""
+        self._save_widths()
+
+
     def _build(self):
         self.header_canvas = tk.Canvas(self, height=32, highlightthickness=0,
                                        bg=self.BG_HEAD)
@@ -305,7 +359,6 @@ class ScrollableTable(ttk.Frame):
             if i < len(self._handles):
                 self._handles[i].place_configure(x=x - 2)
 
-    # ---------------- скролл ----------------
     def _on_xscroll(self, first, last):
         self.hsb.set(first, last)
         try:
@@ -324,9 +377,12 @@ class ScrollableTable(ttk.Frame):
             self.body_canvas.configure(scrollregion=bbox)
             self.header_canvas.configure(scrollregion=(bbox[0], 0, bbox[2], 32))
 
-    # ---------------- drag ----------------
     def _drag_start(self, event, key):
         self._drag = (key, event.x_root, self.widths[key])
+        # Ловим движение и отпускание глобально, чтобы не зависеть
+        # от того, успел ли handle уехать под курсором.
+        self.bind_all("<B1-Motion>", self._drag_move)
+        self.bind_all("<ButtonRelease-1>", self._drag_end)
 
     def _drag_move(self, event):
         if not self._drag:
@@ -337,7 +393,11 @@ class ScrollableTable(ttk.Frame):
         self._apply_widths()
 
     def _drag_end(self, _event):
+        if not self._drag:
+            return
         self._drag = None
+        self.unbind_all("<B1-Motion>")
+        self.unbind_all("<ButtonRelease-1>")
         self._save_widths()
 
     def _apply_widths(self):
@@ -353,7 +413,6 @@ class ScrollableTable(ttk.Frame):
         self.update_idletasks()
         self._update_scrollregion()
 
-    # ---------------- public API ----------------
     def set_rows(self, rows_data, iid_key="id"):
         for row in self._rows:
             row["frame"].destroy()
@@ -363,7 +422,6 @@ class ScrollableTable(ttk.Frame):
             self._add_row(data, iid_key)
         self.update_idletasks()
         self._update_scrollregion()
-        # после пересборки — переподключаем колёсико ко всем строкам
         bind_mousewheel_recursive(self.body, self.body_canvas)
 
     def clear_selection(self):
@@ -380,7 +438,6 @@ class ScrollableTable(ttk.Frame):
                 return
         self._paint_selected(None)
 
-    # ---------------- rows ----------------
     def _add_row(self, data, iid_key):
         iid = str(data[iid_key])
         total_w = sum(self.widths[c["key"]] for c in self.columns)
@@ -689,7 +746,6 @@ class SqlFilterDialog(tk.Toplevel):
 
         self._build_ui(where_text or "", order_by_text or "")
 
-        # размер и позиция
         self.update_idletasks()
         w = 900
         h = 720
@@ -700,21 +756,30 @@ class SqlFilterDialog(tk.Toplevel):
 
         self.protocol("WM_DELETE_WINDOW", self.destroy)
 
-    # ---------------- UI ----------------
     def _build_ui(self, where_text, order_by_text):
         pad = {"padx": 10, "pady": 4}
 
         ttk.Label(self, text="Базовый запрос (только для чтения):")\
             .pack(anchor="w", **pad)
-        self.txt_base = tk.Text(self, height=14, wrap="none",
+
+        base_wrap = ttk.Frame(self)
+        base_wrap.pack(fill="x", padx=10)
+        n_lines = self._base_sql.count("\n") + 2
+        self.txt_base = tk.Text(base_wrap,
+                                height=min(max(n_lines, 4), 20),
+                                wrap="word",
                                 font=("Consolas", 9), bg="#f5f5f5")
-        self.txt_base.pack(fill="x", padx=10)
+        base_sb = ttk.Scrollbar(base_wrap, orient="vertical",
+                                command=self.txt_base.yview)
+        self.txt_base.configure(yscrollcommand=base_sb.set)
+        self.txt_base.pack(side="left", fill="both", expand=True)
+        base_sb.pack(side="right", fill="y")
         self.txt_base.insert("1.0", self._base_sql)
         self.txt_base.configure(state="disabled")
 
         ttk.Label(self, text="WHERE (необязательно). Оставьте пустым — без WHERE:")\
             .pack(anchor="w", **pad)
-        self.txt_where = tk.Text(self, height=14, wrap="none",
+        self.txt_where = tk.Text(self, height=14, wrap="word",
                                  font=("Consolas", 9), undo=True)
         self.txt_where.pack(fill="both", expand=True, padx=10)
         if where_text:
@@ -724,19 +789,17 @@ class SqlFilterDialog(tk.Toplevel):
 
         ttk.Label(self, text="ORDER BY (необязательно). Оставьте пустым — без ORDER BY:")\
             .pack(anchor="w", **pad)
-        self.txt_order = tk.Text(self, height=4, wrap="none",
+        self.txt_order = tk.Text(self, height=4, wrap="word",
                                  font=("Consolas", 9), undo=True)
         self.txt_order.pack(fill="x", padx=10)
         if order_by_text:
             self.txt_order.insert("1.0", order_by_text)
 
-        # статусная строка
         self.var_status = tk.StringVar(value="")
         self.lbl_status = tk.Label(self, textvariable=self.var_status,
                                    anchor="w", padx=10, pady=4)
         self.lbl_status.pack(fill="x", padx=10, pady=(6, 0))
 
-        # кнопки
         btns = ttk.Frame(self, padding=(10, 8))
         btns.pack(fill="x")
         ttk.Button(btns, text="Проверить", command=self._on_check).pack(side="left")
@@ -746,11 +809,9 @@ class SqlFilterDialog(tk.Toplevel):
         ttk.Button(btns, text="Очистить", command=self._on_clear).pack(side="left", padx=(8, 0))
         ttk.Button(btns, text="Отмена", command=self.destroy).pack(side="right")
 
-        # отслеживание изменений
         self.txt_where.bind("<KeyRelease>", self._on_field_change)
         self.txt_order.bind("<KeyRelease>", self._on_field_change)
 
-    # ---------------- helpers ----------------
     @staticmethod
     def _get_text(widget: tk.Text) -> str:
         return widget.get("1.0", "end-1c")
@@ -777,9 +838,8 @@ class SqlFilterDialog(tk.Toplevel):
             parts.append(where_text)
         if order_text:
             parts.append(order_text)
-        return " ".join(parts)
+        return "\n".join(parts)
 
-    # ---------------- events ----------------
     def _on_field_change(self, _e=None):
         self._disable_apply()
         self._set_status("")
@@ -817,7 +877,6 @@ class SqlFilterDialog(tk.Toplevel):
     def _on_apply(self):
         where = self._get_text(self.txt_where).strip()
         order = self._get_text(self.txt_order).strip()
-        # страховка: применяем только то, что было проверено
         if (where, order) != (self._last_checked_where, self._last_checked_order):
             return
         try:
