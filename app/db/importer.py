@@ -19,11 +19,12 @@ class ImportPreflightError(Exception):
     pass
 
 
-# Порядок таблиц для DELETE (дети → родители) и INSERT (родители → дети).
 _DELETE_ORDER = [
     "actions",
     "tasks",
     "epics",
+    "macro_sprint_criteria",
+    "sprint_criteria",
     "sprints",
     "macro_sprints",
     "subroles",
@@ -31,49 +32,63 @@ _DELETE_ORDER = [
     "settings",
     "p1_levels",
     "action_statuses",
+    "criterion_statuses",
     "statuses",
 ]
 
 _INSERT_ORDER = [
     "statuses",
     "action_statuses",
+    "criterion_statuses",
     "p1_levels",
     "roles",
     "subroles",
     "macro_sprints",
     "sprints",
+    "macro_sprint_criteria",
+    "sprint_criteria",
     "epics",
     "tasks",
     "actions",
     "settings",
 ]
 
-_EXPECTED_TABLES = set(_INSERT_ORDER)
+# Таблицы, которых не было в schema_version=1 — при импорте старого
+# файла считаем их пустыми.
+_OPTIONAL_TABLES = {
+    "criterion_statuses",
+    "macro_sprint_criteria",
+    "sprint_criteria",
+}
 
-# FK-связи: (таблица, колонка, целевая таблица, целевая колонка, nullable)
+_EXPECTED_TABLES = set(_INSERT_ORDER) - _OPTIONAL_TABLES
+
 _FK_CHECKS = [
-    ("subroles",        "role_id",         "roles",           "id",   False),
-    ("macro_sprints",   "status_id",       "statuses",        "id",   False),
-    ("sprints",         "status_id",       "statuses",        "id",   False),
-    ("sprints",         "macro_sprint_id", "macro_sprints",   "id",   True),
-    ("epics",           "role_id",         "roles",           "id",   True),
-    ("epics",           "subrole_id",      "subroles",        "id",   True),
-    ("epics",           "status_id",       "statuses",        "id",   False),
-    ("epics",           "macro_sprint_id", "macro_sprints",   "id",   True),
-    ("tasks",           "epic_id",         "epics",           "id",   True),
-    ("tasks",           "role_id",         "roles",           "id",   True),
-    ("tasks",           "subrole_id",      "subroles",        "id",   True),
-    ("tasks",           "status_id",       "statuses",        "id",   False),
-    ("tasks",           "macro_sprint_id", "macro_sprints",   "id",   True),
-    ("tasks",           "sprint_id",       "sprints",         "id",   True),
-    ("actions",         "task_id",         "tasks",           "id",   True),
-    ("actions",         "epic_id",         "epics",           "id",   True),
-    ("actions",         "role_id",         "roles",           "id",   True),
-    ("actions",         "subrole_id",      "subroles",        "id",   True),
-    ("actions",         "status_id",       "action_statuses", "id",   False),
+    ("subroles",                "role_id",         "roles",             "id",   False),
+    ("macro_sprints",           "status_id",       "statuses",          "id",   False),
+    ("sprints",                 "status_id",       "statuses",          "id",   False),
+    ("sprints",                 "macro_sprint_id", "macro_sprints",     "id",   True),
+    ("epics",                   "role_id",         "roles",             "id",   True),
+    ("epics",                   "subrole_id",      "subroles",          "id",   True),
+    ("epics",                   "status_id",       "statuses",          "id",   False),
+    ("epics",                   "macro_sprint_id", "macro_sprints",     "id",   True),
+    ("tasks",                   "epic_id",         "epics",             "id",   True),
+    ("tasks",                   "role_id",         "roles",             "id",   True),
+    ("tasks",                   "subrole_id",      "subroles",          "id",   True),
+    ("tasks",                   "status_id",       "statuses",          "id",   False),
+    ("tasks",                   "macro_sprint_id", "macro_sprints",     "id",   True),
+    ("tasks",                   "sprint_id",       "sprints",           "id",   True),
+    ("actions",                 "task_id",         "tasks",             "id",   True),
+    ("actions",                 "epic_id",         "epics",             "id",   True),
+    ("actions",                 "role_id",         "roles",             "id",   True),
+    ("actions",                 "subrole_id",      "subroles",          "id",   True),
+    ("actions",                 "status_id",       "action_statuses",   "id",   False),
+    ("macro_sprint_criteria",   "macro_sprint_id", "macro_sprints",     "id",   False),
+    ("macro_sprint_criteria",   "status_id",       "criterion_statuses","id",   True),
+    ("sprint_criteria",         "sprint_id",       "sprints",           "id",   False),
+    ("sprint_criteria",         "status_id",       "criterion_statuses","id",   True),
 ]
 
-# Отдельная FK-проверка для tasks.p1 → p1_levels.name (нечисловая).
 _P1_CHECK = ("tasks", "p1", "p1_levels", "name", True)
 
 
@@ -92,7 +107,6 @@ def _load_payload(path) -> dict:
     if not isinstance(data, dict):
         raise ImportValidationError("Корень JSON должен быть объектом.")
 
-    # meta обязательна
     if "meta" not in data or not isinstance(data["meta"], dict):
         raise ImportValidationError("Файл без шапки meta — импорт отклонён.")
 
@@ -103,7 +117,6 @@ def _load_payload(path) -> dict:
 
 
 def _validate_structure(tables: dict) -> None:
-    """Проверяет наличие всех ожидаемых таблиц и что каждая строка — словарь."""
     missing = _EXPECTED_TABLES - set(tables.keys())
     if missing:
         raise ImportValidationError(
@@ -120,8 +133,6 @@ def _validate_structure(tables: dict) -> None:
 
 
 def _validate_fk(tables: dict) -> None:
-    """Проверяет ссылки внутри самого файла (до удаления данных)."""
-    # индекс значений по (таблица, колонка): id — почти везде, name — для p1_levels
     values_by_col: dict[tuple[str, str], set] = {}
 
     def _collect(table: str, column: str):
@@ -169,7 +180,6 @@ def _make_backup() -> Path:
 
 
 def _table_columns(con: sqlite3.Connection, table: str) -> dict[str, dict]:
-    """Возвращает dict: имя_колонки -> {notnull, has_default, pk}."""
     rows = con.execute(f"PRAGMA table_info({table})").fetchall()
     info = {}
     for r in rows:
@@ -177,19 +187,15 @@ def _table_columns(con: sqlite3.Connection, table: str) -> dict[str, dict]:
         notnull = bool(r["notnull"]) and r["pk"] == 0
         has_default = r["dflt_value"] is not None
         info[name] = {
-            "notnull": notnull,
+            "notnull":     notnull,
             "has_default": has_default,
-            "pk": r["pk"] == 1,
+            "pk":          r["pk"] == 1,
         }
     return info
 
 
 def _insert_rows(con: sqlite3.Connection, table: str,
                  rows: list[dict], strict: bool) -> int:
-    """
-    Вставляет строки в таблицу. Сопоставляет поля JSON с колонками таблицы.
-    Возвращает число вставленных строк.
-    """
     if not rows:
         return 0
 
@@ -232,25 +238,14 @@ def _insert_rows(con: sqlite3.Connection, table: str,
 
 
 def import_from_json(path) -> dict:
-    """
-    Импортирует данные из JSON-файла в текущую БД (полная замена).
-
-    Возвращает словарь:
-      {
-        "strict": bool,           # совпала ли schema_version
-        "backup_path": str,       # куда положен бэкап
-        "counts": {table: n},     # сколько строк вставлено
-        "warnings": [str],        # предупреждения (не критичные)
-      }
-
-    Может бросить:
-      ImportValidationError — файл или данные не прошли проверку;
-      ImportPreflightError  — не удалось сделать бэкап;
-      sqlite3.Error         — ошибка БД в процессе (с откатом).
-    """
     data = _load_payload(path)
     meta = data["meta"]
     tables = data["tables"]
+
+    # недостающие «новые» таблицы считаем пустыми
+    for t in _OPTIONAL_TABLES:
+        if t not in tables:
+            tables[t] = []
 
     warnings: list[str] = []
     file_version = meta.get("schema_version")

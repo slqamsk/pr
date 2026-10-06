@@ -138,3 +138,35 @@ CREATE INDEX IF NOT EXISTS idx_actions_role     ON actions(role_id);
 CREATE INDEX IF NOT EXISTS idx_actions_subrole  ON actions(subrole_id);
 CREATE INDEX IF NOT EXISTS idx_actions_status   ON actions(status_id);
 CREATE INDEX IF NOT EXISTS idx_actions_date     ON actions(date);
+
+
+-- ==================== CRITERIA ====================
+
+CREATE TABLE IF NOT EXISTS criterion_statuses (
+    id   INTEGER PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS macro_sprint_criteria (
+    id              INTEGER PRIMARY KEY,
+    macro_sprint_id INTEGER NOT NULL REFERENCES macro_sprints(id) ON DELETE CASCADE,
+    n               INTEGER NOT NULL,
+    text            TEXT    NOT NULL,
+    status_id       INTEGER NULL REFERENCES criterion_statuses(id) ON DELETE RESTRICT,
+    comment         TEXT    NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_ms_criteria_macro ON macro_sprint_criteria(macro_sprint_id);
+CREATE INDEX IF NOT EXISTS idx_ms_criteria_order ON macro_sprint_criteria(macro_sprint_id, n);
+
+CREATE TABLE IF NOT EXISTS sprint_criteria (
+    id          INTEGER PRIMARY KEY,
+    sprint_id   INTEGER NOT NULL REFERENCES sprints(id) ON DELETE CASCADE,
+    n           INTEGER NOT NULL,
+    text        TEXT    NOT NULL,
+    status_id   INTEGER NULL REFERENCES criterion_statuses(id) ON DELETE RESTRICT,
+    comment     TEXT    NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_sp_criteria_sprint ON sprint_criteria(sprint_id);
+CREATE INDEX IF NOT EXISTS idx_sp_criteria_order  ON sprint_criteria(sprint_id, n);

@@ -538,3 +538,78 @@ def count_actions_using_subrole(subrole_id: int) -> int:
             "SELECT COUNT(*) AS n FROM actions WHERE subrole_id = ?", (subrole_id,)
         ).fetchone()
         return row["n"]
+
+# ------------------- criterion_statuses -------------------
+
+def list_criterion_statuses() -> list[dict]:
+    with cursor() as con:
+        rows = con.execute(
+            "SELECT id, name FROM criterion_statuses ORDER BY id"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+# ------------------- macro_sprint_criteria -------------------
+
+def list_macro_sprint_criteria(macro_sprint_id: int) -> list[dict]:
+    with cursor() as con:
+        rows = con.execute(
+            "SELECT c.id, c.macro_sprint_id, c.n, c.text, "
+            "       c.status_id, s.name AS status_name, c.comment "
+            "FROM macro_sprint_criteria c "
+            "LEFT JOIN criterion_statuses s ON s.id = c.status_id "
+            "WHERE c.macro_sprint_id = ? "
+            "ORDER BY c.n, c.id",
+            (macro_sprint_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def replace_macro_sprint_criteria(macro_sprint_id: int,
+                                  criteria: list[dict]) -> None:
+    """Полностью заменяет набор критериев макро-спринта в одной транзакции."""
+    with cursor() as con:
+        con.execute(
+            "DELETE FROM macro_sprint_criteria WHERE macro_sprint_id = ?",
+            (macro_sprint_id,),
+        )
+        for c in criteria:
+            con.execute(
+                """INSERT INTO macro_sprint_criteria
+                       (macro_sprint_id, n, text, status_id, comment)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (macro_sprint_id, c["n"], c["text"],
+                 c.get("status_id"), c.get("comment")),
+            )
+
+
+# ------------------- sprint_criteria -------------------
+
+def list_sprint_criteria(sprint_id: int) -> list[dict]:
+    with cursor() as con:
+        rows = con.execute(
+            "SELECT c.id, c.sprint_id, c.n, c.text, "
+            "       c.status_id, s.name AS status_name, c.comment "
+            "FROM sprint_criteria c "
+            "LEFT JOIN criterion_statuses s ON s.id = c.status_id "
+            "WHERE c.sprint_id = ? "
+            "ORDER BY c.n, c.id",
+            (sprint_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def replace_sprint_criteria(sprint_id: int, criteria: list[dict]) -> None:
+    with cursor() as con:
+        con.execute(
+            "DELETE FROM sprint_criteria WHERE sprint_id = ?",
+            (sprint_id,),
+        )
+        for c in criteria:
+            con.execute(
+                """INSERT INTO sprint_criteria
+                       (sprint_id, n, text, status_id, comment)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (sprint_id, c["n"], c["text"],
+                 c.get("status_id"), c.get("comment")),
+            )

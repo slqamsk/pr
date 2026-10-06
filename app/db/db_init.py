@@ -40,12 +40,19 @@ DEFAULT_ACTION_STATUSES = [
     (5, "Без задачи"),
 ]
 
-_ROLES_INIT_FLAG            = "roles.initialized"
-_STATUSES_INIT_FLAG         = "statuses.initialized"
-_P1_INIT_FLAG               = "p1_levels.initialized"
-_ACTION_STATUSES_INIT_FLAG  = "action_statuses.initialized"
-_POMODORO_KEY               = "pomodoro.per_day"
-_POMODORO_DEFAULT           = "8"
+DEFAULT_CRITERION_STATUSES = [
+    (1, "Passed"),
+    (2, "Failed"),
+    (3, "Partially Passed"),
+]
+
+_ROLES_INIT_FLAG             = "roles.initialized"
+_STATUSES_INIT_FLAG          = "statuses.initialized"
+_P1_INIT_FLAG                = "p1_levels.initialized"
+_ACTION_STATUSES_INIT_FLAG   = "action_statuses.initialized"
+_CRITERION_STATUSES_INIT_FLAG = "criterion_statuses.initialized"
+_POMODORO_KEY                = "pomodoro.per_day"
+_POMODORO_DEFAULT            = "8"
 
 
 def db_exists() -> bool:
@@ -72,10 +79,11 @@ def _seed_setting_default(con, key, default_value):
 def _apply_schema(con: sqlite3.Connection) -> None:
     schema = SCHEMA_PATH.read_text(encoding="utf-8")
     con.executescript(schema)
-    _seed_once(con, _ROLES_INIT_FLAG,           "roles",           DEFAULT_ROLES)
-    _seed_once(con, _STATUSES_INIT_FLAG,        "statuses",        DEFAULT_STATUSES)
-    _seed_once(con, _P1_INIT_FLAG,              "p1_levels",       DEFAULT_P1_LEVELS)
-    _seed_once(con, _ACTION_STATUSES_INIT_FLAG, "action_statuses", DEFAULT_ACTION_STATUSES)
+    _seed_once(con, _ROLES_INIT_FLAG,             "roles",             DEFAULT_ROLES)
+    _seed_once(con, _STATUSES_INIT_FLAG,          "statuses",          DEFAULT_STATUSES)
+    _seed_once(con, _P1_INIT_FLAG,                "p1_levels",         DEFAULT_P1_LEVELS)
+    _seed_once(con, _ACTION_STATUSES_INIT_FLAG,   "action_statuses",   DEFAULT_ACTION_STATUSES)
+    _seed_once(con, _CRITERION_STATUSES_INIT_FLAG, "criterion_statuses", DEFAULT_CRITERION_STATUSES)
     _seed_setting_default(con, _POMODORO_KEY, _POMODORO_DEFAULT)
 
 

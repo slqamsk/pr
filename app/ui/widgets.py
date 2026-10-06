@@ -438,3 +438,190 @@ class ScrollableTable(ttk.Frame):
             for lbl in row["cells"].values():
                 lbl.configure(bg=color)
         self._selected = iid
+
+
+class EditableCriteriaList(ttk.Frame):
+    """
+    Редактируемый список критериев достижения.
+    Строки: N | Текст | Статус | Комментарий | ✕
+    """
+    def __init__(self, parent, statuses, on_change=None, height=120):
+        super().__init__(parent)
+        self._statuses = list(statuses)
+        self._on_change = on_change
+        self._rows: list[dict] = []
+        self._loading = False
+        self._enabled = True
+        self._height = height
+        self._build()
+
+    def _build(self):
+        head = ttk.Frame(self)
+        head.pack(fill="x")
+        ttk.Label(head, text="N",           width=5,  anchor="w").pack(side="left")
+        ttk.Label(head, text="Текст",       width=40, anchor="w").pack(side="left")
+        ttk.Label(head, text="Статус",      width=18, anchor="w").pack(side="left")
+        ttk.Label(head, text="Комментарий", width=25, anchor="w")\
+            .pack(side="left", fill="x", expand=True)
+        ttk.Label(head, text="", width=3).pack(side="left")
+
+        wrap = ttk.Frame(self)
+        wrap.pack(fill="both", expand=True)
+        self.canvas = tk.Canvas(wrap, highlightthickness=0, height=self._height)
+        self.canvas.pack(side="left", fill="both", expand=True)
+        vsb = ttk.Scrollbar(wrap, orient="vertical", command=self.canvas.yview)
+        vsb.pack(side="right", fill="y")
+        self.canvas.configure(yscrollcommand=vsb.set)
+
+        self.rows_frame = ttk.Frame(self.canvas)
+        self._window = self.canvas.create_window((0, 0), window=self.rows_frame,
+                                                 anchor="nw")
+        self.rows_frame.bind("<Configure>",
+                             lambda e: self.canvas.configure(
+                                 scrollregion=self.canvas.bbox("all")))
+        self.canvas.bind("<Configure>",
+                         lambda e: self.canvas.itemconfigure(self._window,
+                                                             width=e.width))
+
+    # ---------- public API ----------
+    def set_items(self, items: list[dict]):
+        """Программно устанавливает список. Не считается изменением."""
+        self._loading = True
+        try:
+            for r in self._rows:
+                r["frame"].destroy()
+            self._rows.clear()
+            for it in items:
+                self._add_row_internal(
+                    n=it.get("n"),
+                    text=it.get("text", "") or "",
+                    status_name=it.get("status_name") or "",
+                    comment=it.get("comment") or "",
+                )
+        finally:
+            self._loading = False
+
+    def get_items(self) -> list[dict]:
+        """Возвращает список критериев, отсортированный по (n, порядок ввода)."""
+        result = []
+        for i, r in enumerate(self._rows):
+            n_text = r["n_var"].get().strip()
+            try:
+                n_val = int(n_text)
+                if n_val < 1:
+                    n_val = None
+            except ValueError:
+                n_val = None
+            text = r["text_var"].get().strip()
+            status = r["status_var"].get().strip()
+            comment = r["comment_var"].get().strip()
+            result.append({
+                "_id":         i,
+                "n":           n_val,
+                "text":        text,
+                "status_name": status or None,
+                "comment":     comment or None,
+            })
+        result.sort(key=lambda x: (x["n"] if x["n"] is not None else 10**9, x["_id"]))
+        return result
+
+    def add_item(self):
+        current = []
+        for r in self._rows:
+            try:
+                current.append(int(r["n_var"].get().strip()))
+            except ValueError:
+                pass
+        n = (max(current) + 1) if current else 1
+        self._add_row_internal(n=n, text="", status_name="", comment="")
+        self._notify_change()
+
+    def clear(self):
+        self.set_items([])
+
+    def set_enabled(self, enabled: bool):
+        self._enabled = enabled
+        state = "normal" if enabled else "disabled"
+        for r in self._rows:
+            r["n_entry"].configure(state=state)
+            r["text_entry"].configure(state=state)
+            r["status_cmb"].configure(state="readonly" if enabled else "disabled")
+            r["comment_entry"].configure(state=state)
+            r["del_btn"].configure(state=state)
+
+    # ---------- internals ----------
+    def _add_row_internal(self, n, text, status_name, comment):
+        row: dict = {}
+        frame = ttk.Frame(self.rows_frame)
+        frame.pack(fill="x", pady=1)
+
+        row["n_var"]       = tk.StringVar(value=("" if n is None else str(n)))
+        row["text_var"]    = tk.StringVar(value=text)
+        row["status_var"]  = tk.StringVar(value=status_name)
+        row["comment_var"] = tk.StringVar(value=comment)
+
+        n_entry = ttk.Entry(frame, textvariable=row["n_var"], width=5)
+        n_entry.pack(side="left")
+        text_entry = ttk.Entry(frame, textvariable=row["text_var"])
+        text_entry.pack(side="left", fill="x", expand=True, padx=(4, 0))
+        status_cmb = ttk.Combobox(frame, textvariable=row["status_var"],
+                                  values=[""] + self._statuses,
+                                  state="readonly", width=18)
+        status_cmb.pack(side="left", padx=(4, 0))
+        comment_entry = ttk.Entry(frame, textvariable=row["comment_var"])
+        comment_entry.pack(side="left", fill="x", expand=True, padx=(4, 0))
+        del_btn = ttk.Button(frame, text="✕", width=3)
+        del_btn.pack(side="left", padx=(4, 0))
+
+        row["frame"]         = frame
+        row["n_entry"]       = n_entry
+        row["text_entry"]    = text_entry
+        row["status_cmb"]    = status_cmb
+        row["comment_entry"] = comment_entry
+        row["del_btn"]       = del_btn
+        self._rows.append(row)
+
+        del_btn.configure(command=lambda rr=row: self._delete_row(rr))
+
+        for var in (row["n_var"], row["text_var"],
+                    row["status_var"], row["comment_var"]):
+            var.trace_add("write", lambda *_: self._notify_change())
+
+        n_entry.bind("<FocusOut>", lambda e: self._resort())
+
+        if not self._enabled:
+            n_entry.configure(state="disabled")
+            text_entry.configure(state="disabled")
+            status_cmb.configure(state="disabled")
+            comment_entry.configure(state="disabled")
+            del_btn.configure(state="disabled")
+
+    def _delete_row(self, row):
+        if row not in self._rows:
+            return
+        row["frame"].destroy()
+        self._rows.remove(row)
+        self._notify_change()
+
+    def _resort(self):
+        """Пересортировывает строки по N (стабильно, при равенстве — по порядку ввода)."""
+        if self._loading:
+            return
+        def key_func(r):
+            try:
+                return int(r["n_var"].get().strip())
+            except ValueError:
+                return 10**9
+        indexed = list(enumerate(self._rows))
+        indexed.sort(key=lambda pair: (key_func(pair[1]), pair[0]))
+        self._rows = [r for _, r in indexed]
+        for r in self._rows:
+            r["frame"].pack_forget()
+        for r in self._rows:
+            r["frame"].pack(fill="x", pady=1)
+
+    def _notify_change(self):
+        if self._loading:
+            return
+        if self._on_change:
+            self._on_change()

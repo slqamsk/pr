@@ -6,42 +6,37 @@ from pathlib import Path
 
 from db import db, db_init
 
-EXPORT_SCHEMA_VERSION = 1
+EXPORT_SCHEMA_VERSION = 2
 APP_NAME = "pr_v01"
 
-# Порядок таблиц в JSON. Здесь же — источник истины по набору таблиц.
-# (имя, ключ_сортировки | None)
 _TABLES = [
-    ("roles",           "id"),
-    ("subroles",        "id"),
-    ("macro_sprints",   "id"),
-    ("sprints",         "id"),
-    ("epics",           "id"),
-    ("tasks",           "id"),
-    ("actions",         "id"),
-    ("statuses",        "id"),
-    ("action_statuses", "id"),
-    ("p1_levels",       "id"),
-    ("settings",        "key"),
+    ("roles",                  "id"),
+    ("subroles",               "id"),
+    ("macro_sprints",          "id"),
+    ("sprints",                "id"),
+    ("epics",                  "id"),
+    ("tasks",                  "id"),
+    ("actions",                "id"),
+    ("statuses",               "id"),
+    ("action_statuses",        "id"),
+    ("criterion_statuses",     "id"),
+    ("p1_levels",              "id"),
+    ("settings",               "key"),
+    ("macro_sprint_criteria",  "id"),
+    ("sprint_criteria",        "id"),
 ]
 
 
 def default_filename() -> str:
-    """pr_v01_export_2026-10-02_152311.json"""
     stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
     return f"{APP_NAME}_export_{stamp}.json"
 
 
 def default_dir() -> Path:
-    """Папка data/ — рядом с БД."""
     return db_init.DATA_DIR
 
 
 def export_to_json(path) -> Path:
-    """
-    Выгружает все таблицы в JSON. Возвращает фактический путь файла.
-    Может бросить OSError, если файл нельзя записать.
-    """
     path = Path(path)
 
     tables_data: dict[str, list[dict]] = {}
@@ -67,7 +62,6 @@ def export_to_json(path) -> Path:
         "tables": tables_data,
     }
 
-    # атомарная запись: во временный файл → переименование
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
     with open(tmp, "w", encoding="utf-8") as f:

@@ -5,7 +5,8 @@ import sqlite3
 from datetime import datetime
 
 from db import db
-from ui.widgets import CalendarPopup, ScrollableTable, ask_unsaved_changes
+from ui.widgets import (CalendarPopup, ScrollableTable,
+                        ask_unsaved_changes, EditableCriteriaList)
 
 COLUMNS = [
     {"key": "code",        "title": "Code",   "width": 90,  "wrap": False},
@@ -34,7 +35,9 @@ class SprintsTab(ttk.Frame):
 
         self._statuses: list[dict] = []
         self._status_by_name: dict[str, int] = {}
-        self._status_by_id: dict[int, str] = {}
+
+        self._crit_statuses: list[dict] = []
+        self._crit_status_by_name: dict[str, int] = {}
 
         self._macro_by_code: dict[str, int] = {}
 
@@ -46,14 +49,19 @@ class SprintsTab(ttk.Frame):
     def _build_ui(self):
         self._statuses = db.list_statuses()
         self._status_by_name = {s["name"]: s["id"] for s in self._statuses}
-        self._status_by_id = {s["id"]: s["name"] for s in self._statuses}
 
-        self.table = ScrollableTable(self, COLUMNS, on_select=self._on_table_select,
-                                     settings_key="ui.columns.sprints")
-        self.table.pack(fill="both", expand=True)
+        self._crit_statuses = db.list_criterion_statuses()
+        self._crit_status_by_name = {s["name"]: s["id"] for s in self._crit_statuses}
 
+        # ---- Нижний ряд кнопок ----
+        btns = ttk.Frame(self, padding=(0, 8, 0, 0))
+        ttk.Button(btns, text="Новая",     command=self._new).pack(side="left")
+        ttk.Button(btns, text="Сохранить", command=self._on_save_clicked).pack(side="left", padx=6)
+        ttk.Button(btns, text="Удалить",   command=self._delete).pack(side="left")
+        ttk.Button(btns, text="Обновить",  command=self._on_refresh_clicked).pack(side="right")
+
+        # ---- Форма ----
         form = ttk.LabelFrame(self, text="Запись", padding=8)
-        form.pack(fill="x", pady=(8, 0))
         form.columnconfigure(1, weight=1)
 
         self.var_code   = tk.StringVar()
@@ -108,22 +116,41 @@ class SprintsTab(ttk.Frame):
                                       values=[""], state="readonly", width=14)
         self.cmb_macro.grid(row=r, column=1, sticky="w", pady=2)
 
-        btns = ttk.Frame(self, padding=(0, 8, 0, 0))
-        btns.pack(fill="x")
-        ttk.Button(btns, text="Новая",     command=self._new).pack(side="left")
-        ttk.Button(btns, text="Сохранить", command=self._on_save_clicked).pack(side="left", padx=6)
-        ttk.Button(btns, text="Удалить",   command=self._delete).pack(side="left")
-        ttk.Button(btns, text="Обновить",  command=self._on_refresh_clicked).pack(side="right")
+        # ---- Блок критериев ----
+        grp_crit = ttk.LabelFrame(self, text="Критерии достижения", padding=8)
+        self.criteria_list = EditableCriteriaList(
+            grp_crit,
+            statuses=[s["name"] for s in self._crit_statuses],
+        )
+        self.criteria_list.pack(fill="both", expand=True)
+        self.btn_add_criterion = ttk.Button(grp_crit, text="Добавить",
+                                            command=self.criteria_list.add_item)
+        self.btn_add_criterion.pack(anchor="w", pady=(6, 0))
+
+        # ---- Таблица ----
+        self.table = ScrollableTable(self, COLUMNS, on_select=self._on_table_select,
+                                     settings_key="ui.columns.sprints")
+
+        # ---- Упаковка снизу вверх ----
+        btns.pack(side="bottom", fill="x")
+        grp_crit.pack(side="bottom", fill="both", expand=False, pady=(8, 0))
+        form.pack(side="bottom", fill="x", pady=(8, 0))
+        self.table.pack(side="top", fill="both", expand=True)
 
     # ---------- снимок ----------
     def _form_state(self) -> dict:
+        criteria = tuple(
+            (c["n"], c["text"], c["status_name"] or "", c["comment"] or "")
+            for c in self.criteria_list.get_items()
+        )
         return {
-            "code":   self.var_code.get().strip(),
-            "start":  self.var_start.get().strip(),
-            "end":    self.var_end.get().strip(),
-            "goal":   self._get_goal(),
-            "status": self.var_status.get(),
-            "macro":  self.var_macro.get().strip(),
+            "code":     self.var_code.get().strip(),
+            "start":    self.var_start.get().strip(),
+            "end":      self.var_end.get().strip(),
+            "goal":     self._get_goal(),
+            "status":   self.var_status.get(),
+            "macro":    self.var_macro.get().strip(),
+            "criteria": criteria,
         }
 
     def _set_snapshot(self):
@@ -179,6 +206,16 @@ class SprintsTab(ttk.Frame):
         self.var_status.set(src["status_name"])
         self.var_macro.set(src["macro_code"] or "")
         self._set_goal(src["goal"])
+
+        crit = db.list_sprint_criteria(sid)
+        items = [{
+            "n":           c["n"],
+            "text":        c["text"],
+            "status_name": c["status_name"] or "",
+            "comment":     c["comment"] or "",
+        } for c in crit]
+        self.criteria_list.set_items(items)
+
         self._set_snapshot()
         self.table.select_iid(str(sid))
 
@@ -197,6 +234,7 @@ class SprintsTab(ttk.Frame):
         self.var_status.set(self._statuses[0]["name"] if self._statuses else "")
         self.var_macro.set("")
         self._set_goal("")
+        self.criteria_list.clear()
         self.table.clear_selection()
         self._set_snapshot()
 
@@ -236,6 +274,35 @@ class SprintsTab(ttk.Frame):
     def _on_save_clicked(self):
         self._save()
 
+    def _collect_criteria_for_db(self) -> list[dict] | None:
+        raw = self.criteria_list.get_items()
+        result = []
+        for c in raw:
+            text = c["text"]
+            if not text:
+                if not c["status_name"] and not c["comment"]:
+                    continue
+                messagebox.showwarning("Валидация",
+                                       "У критерия должен быть текст.",
+                                       parent=self.winfo_toplevel())
+                return None
+            n = c["n"] if c["n"] is not None else 0
+            status_id = None
+            if c["status_name"]:
+                status_id = self._crit_status_by_name.get(c["status_name"])
+                if status_id is None:
+                    messagebox.showwarning("Валидация",
+                                           f"Неизвестный статус критерия: {c['status_name']!r}",
+                                           parent=self.winfo_toplevel())
+                    return None
+            result.append({
+                "n":         n,
+                "text":      text,
+                "status_id": status_id,
+                "comment":   c["comment"],
+            })
+        return result
+
     def _save(self) -> bool:
         code = self.var_code.get().strip()
         if not code:
@@ -273,6 +340,10 @@ class SprintsTab(ttk.Frame):
                                        parent=self.winfo_toplevel())
                 return False
 
+        criteria = self._collect_criteria_for_db()
+        if criteria is None:
+            return False
+
         goal = self._get_goal()
 
         try:
@@ -283,6 +354,7 @@ class SprintsTab(ttk.Frame):
             else:
                 db.update_sprint(self.current_id, code, start, end,
                                  goal, status_id, macro_id)
+            db.replace_sprint_criteria(self.current_id, criteria)
         except sqlite3.IntegrityError:
             messagebox.showwarning("Валидация", f"Code '{code}' уже существует.",
                                    parent=self.winfo_toplevel())
