@@ -1,4 +1,5 @@
 """Вкладка работы с действиями (actions)."""
+import re
 import tkinter as tk
 from tkinter import ttk, messagebox
 import sqlite3
@@ -50,6 +51,11 @@ _ACTION_BASE_SQL = (
 )
 _ACTION_DEFAULT_ORDER = "ORDER BY a.date DESC, a.start_time IS NULL, a.start_time DESC, a.id DESC"
 
+_COPY_NAME_RE = re.compile(
+    r"^(.*?)\s*[-—]\s*часть\s*(\d+)\s*$",
+    re.IGNORECASE,
+)
+
 
 def _to_iso(s: str) -> str:
     return datetime.strptime(s.strip(), "%d.%m.%Y").strftime("%Y-%m-%d")
@@ -61,6 +67,17 @@ def _to_ru(iso: str) -> str:
 
 def _role_display(rid: int, name: str) -> str:
     return f"{rid}. {name}"
+
+
+def _make_copy_name(name: str | None) -> str | None:
+    if not name:
+        return name
+    m = _COPY_NAME_RE.match(name)
+    if m:
+        prefix = m.group(1).rstrip()
+        n = int(m.group(2)) + 1
+        return f"{prefix} - часть {n}"
+    return f"{name} - часть 2"
 
 
 def _hhmm_to_minutes(s: str) -> int | None:
@@ -177,6 +194,7 @@ class ActionsTab(ttk.Frame):
         self.refresh()
         self._set_snapshot()
 
+    # ---------- UI ----------
     def _build_ui(self):
         self._statuses = db.list_action_statuses()
         self._status_by_name = {s["name"]: s["id"] for s in self._statuses}
@@ -211,13 +229,23 @@ class ActionsTab(ttk.Frame):
                                          anchor="w", padx=8, pady=2, fg="#606060")
         self.lbl_table_status.pack(side="bottom", fill="x", padx=8)
 
+        # --- Сетка 4 колонок. Строка 0 — фиксированной высоты,
+        #     строка 1 (Привязки + Связанные данные) — растягивается,
+        #     строка 2 (Прочее) — фиксированная.
         body = ttk.Frame(self._bottom)
         body.pack(fill="both", expand=True, pady=(8, 0))
         body.columnconfigure(0, weight=1, uniform="f")
         body.columnconfigure(1, weight=1, uniform="f")
+        body.columnconfigure(2, weight=1, uniform="f")
+        body.columnconfigure(3, weight=1, uniform="f")
+        body.rowconfigure(0, weight=0)
+        body.rowconfigure(1, weight=1)
+        body.rowconfigure(2, weight=0)
 
+        # ---------- Основное (row 0, cols 0-1) ----------
         grp_main = ttk.LabelFrame(body, text="Основное", padding=6)
-        grp_main.grid(row=0, column=0, sticky="nsew", padx=(0, 4), pady=(0, 4))
+        grp_main.grid(row=0, column=0, columnspan=2, sticky="nsew",
+                      padx=(0, 3), pady=(0, 4))
         grp_main.columnconfigure(1, weight=1)
 
         self.var_name = tk.StringVar()
@@ -237,40 +265,9 @@ class ActionsTab(ttk.Frame):
         self.txt_desc.configure(yscrollcommand=dsb.set)
         dsb.grid(row=0, column=1, sticky="ns")
 
-        grp_links = ttk.LabelFrame(body, text="Привязки", padding=6)
-        grp_links.grid(row=0, column=1, sticky="nsew", padx=(4, 0), pady=(0, 4))
-        grp_links.columnconfigure(1, weight=1)
-
-        self.var_epic    = tk.StringVar()
-        self.var_task    = tk.StringVar()
-        self.var_role    = tk.StringVar()
-        self.var_subrole = tk.StringVar()
-
-        ttk.Label(grp_links, text="Эпик").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=2)
-        self.cmb_epic = ttk.Combobox(grp_links, textvariable=self.var_epic,
-                                     values=[""], state="readonly", width=30)
-        self.cmb_epic.grid(row=0, column=1, sticky="w", pady=2)
-        self.cmb_epic.bind("<<ComboboxSelected>>", self._on_epic_changed)
-
-        ttk.Label(grp_links, text="Задача").grid(row=1, column=0, sticky="w", padx=(0, 8), pady=2)
-        self.cmb_task = ttk.Combobox(grp_links, textvariable=self.var_task,
-                                     values=[""], state="readonly", width=30)
-        self.cmb_task.grid(row=1, column=1, sticky="w", pady=2)
-        self.cmb_task.bind("<<ComboboxSelected>>", self._on_task_changed)
-
-        ttk.Label(grp_links, text="Роль").grid(row=2, column=0, sticky="w", padx=(0, 8), pady=2)
-        self.cmb_role = ttk.Combobox(grp_links, textvariable=self.var_role,
-                                     values=[], state="readonly", width=30)
-        self.cmb_role.grid(row=2, column=1, sticky="w", pady=2)
-        self.cmb_role.bind("<<ComboboxSelected>>", self._on_role_selected)
-
-        ttk.Label(grp_links, text="Подроль").grid(row=3, column=0, sticky="w", padx=(0, 8), pady=2)
-        self.cmb_subrole = ttk.Combobox(grp_links, textvariable=self.var_subrole,
-                                        values=[], state="disabled", width=30)
-        self.cmb_subrole.grid(row=3, column=1, sticky="w", pady=2)
-
+        # ---------- Время и вес (row 0, col 2) ----------
         grp_time = ttk.LabelFrame(body, text="Время и вес", padding=6)
-        grp_time.grid(row=1, column=0, sticky="nsew", padx=(0, 4), pady=(4, 0))
+        grp_time.grid(row=0, column=2, sticky="nsew", padx=(3, 3), pady=(0, 4))
         grp_time.columnconfigure(1, weight=1)
 
         self.var_date = tk.StringVar()
@@ -302,14 +299,17 @@ class ActionsTab(ttk.Frame):
             .grid(row=4, column=1, sticky="w", pady=2)
 
         side_btns = ttk.Frame(grp_time)
-        side_btns.grid(row=0, column=2, rowspan=5, sticky="ne", padx=(16, 0), pady=2)
+        side_btns.grid(row=0, column=2, rowspan=5, sticky="ne", padx=(8, 0), pady=2)
         ttk.Button(side_btns, text="Начать",
                    command=self._on_start_clicked).pack(fill="x")
         ttk.Button(side_btns, text="Завершить",
                    command=self._on_finish_clicked).pack(fill="x", pady=(6, 0))
+        ttk.Button(side_btns, text="Копировать",
+                   command=self._on_copy_clicked).pack(fill="x", pady=(6, 0))
 
+        # ---------- Итоги (row 0, col 3) ----------
         grp_view = ttk.LabelFrame(body, text="Итоги (только чтение)", padding=6)
-        grp_view.grid(row=1, column=1, sticky="nsew", padx=(4, 0), pady=(4, 0))
+        grp_view.grid(row=0, column=3, sticky="nsew", padx=(3, 0), pady=(0, 4))
         grp_view.columnconfigure(1, weight=1)
 
         self.var_v_pp = tk.StringVar()
@@ -330,8 +330,83 @@ class ActionsTab(ttk.Frame):
         self.lbl_v_e  = _row(2, "End",      self.var_v_e)
         self.lbl_v_d  = _row(3, "Duration", self.var_v_d)
 
+        # ---------- Привязки (row 1, cols 0-1) ----------
+        grp_links = ttk.LabelFrame(body, text="Привязки", padding=6)
+        grp_links.grid(row=1, column=0, columnspan=2, sticky="nsew",
+                       padx=(0, 3), pady=(4, 0))
+        grp_links.columnconfigure(1, weight=1)
+
+        self.var_epic    = tk.StringVar()
+        self.var_task    = tk.StringVar()
+        self.var_role    = tk.StringVar()
+        self.var_subrole = tk.StringVar()
+
+        ttk.Label(grp_links, text="Эпик").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=2)
+        self.cmb_epic = ttk.Combobox(grp_links, textvariable=self.var_epic,
+                                     values=[""], state="readonly")
+        self.cmb_epic.grid(row=0, column=1, sticky="ew", pady=2)
+        self.cmb_epic.bind("<<ComboboxSelected>>", self._on_epic_changed)
+
+        ttk.Label(grp_links, text="Задача").grid(row=1, column=0, sticky="w", padx=(0, 8), pady=2)
+        self.cmb_task = ttk.Combobox(grp_links, textvariable=self.var_task,
+                                     values=[""], state="readonly")
+        self.cmb_task.grid(row=1, column=1, sticky="ew", pady=2)
+        self.cmb_task.bind("<<ComboboxSelected>>", self._on_task_changed)
+
+        ttk.Label(grp_links, text="Роль").grid(row=2, column=0, sticky="w", padx=(0, 8), pady=2)
+        self.cmb_role = ttk.Combobox(grp_links, textvariable=self.var_role,
+                                     values=[], state="readonly")
+        self.cmb_role.grid(row=2, column=1, sticky="ew", pady=2)
+        self.cmb_role.bind("<<ComboboxSelected>>", self._on_role_selected)
+
+        ttk.Label(grp_links, text="Подроль").grid(row=3, column=0, sticky="w", padx=(0, 8), pady=2)
+        self.cmb_subrole = ttk.Combobox(grp_links, textvariable=self.var_subrole,
+                                        values=[], state="disabled")
+        self.cmb_subrole.grid(row=3, column=1, sticky="ew", pady=2)
+
+        # ---------- Связанные данные (row 1, cols 2-3) ----------
+        grp_ctx = ttk.LabelFrame(body, text="Связанные данные", padding=6)
+        grp_ctx.grid(row=1, column=2, columnspan=2, sticky="nsew",
+                     padx=(3, 0), pady=(4, 0))
+        grp_ctx.columnconfigure(0, weight=1)
+        grp_ctx.rowconfigure(1, weight=1)
+        grp_ctx.rowconfigure(3, weight=1)
+
+        ttk.Label(grp_ctx, text="Цель эпика").grid(row=0, column=0, sticky="w", pady=(0, 2))
+
+        goal_wrap = ttk.Frame(grp_ctx)
+        goal_wrap.grid(row=1, column=0, sticky="nsew")
+        goal_wrap.columnconfigure(0, weight=1)
+        goal_wrap.rowconfigure(0, weight=1)
+        self.txt_epic_goal = tk.Text(goal_wrap, height=3, wrap="word",
+                                     font=("TkDefaultFont", 9),
+                                     bg="#f5f5f5", state="disabled",
+                                     relief="solid", borderwidth=1)
+        self.txt_epic_goal.grid(row=0, column=0, sticky="nsew")
+        gsb = ttk.Scrollbar(goal_wrap, orient="vertical", command=self.txt_epic_goal.yview)
+        self.txt_epic_goal.configure(yscrollcommand=gsb.set)
+        gsb.grid(row=0, column=1, sticky="ns")
+
+        ttk.Label(grp_ctx, text="Description задачи")\
+            .grid(row=2, column=0, sticky="w", pady=(6, 2))
+
+        desc_wrap2 = ttk.Frame(grp_ctx)
+        desc_wrap2.grid(row=3, column=0, sticky="nsew")
+        desc_wrap2.columnconfigure(0, weight=1)
+        desc_wrap2.rowconfigure(0, weight=1)
+        self.txt_task_desc = tk.Text(desc_wrap2, height=3, wrap="word",
+                                     font=("TkDefaultFont", 9),
+                                     bg="#f5f5f5", state="disabled",
+                                     relief="solid", borderwidth=1)
+        self.txt_task_desc.grid(row=0, column=0, sticky="nsew")
+        tsb = ttk.Scrollbar(desc_wrap2, orient="vertical",
+                            command=self.txt_task_desc.yview)
+        self.txt_task_desc.configure(yscrollcommand=tsb.set)
+        tsb.grid(row=0, column=1, sticky="ns")
+
+        # ---------- Прочее (row 2, все колонки) ----------
         grp_other = ttk.LabelFrame(body, text="Прочее", padding=6)
-        grp_other.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        grp_other.grid(row=2, column=0, columnspan=4, sticky="ew", pady=(8, 0))
         grp_other.columnconfigure(1, weight=1)
 
         self.var_status = tk.StringVar()
@@ -350,6 +425,26 @@ class ActionsTab(ttk.Frame):
             self._save_ui_state_impl()
         if hasattr(self, "table") and hasattr(self.table, "save_ui_state"):
             self.table.save_ui_state()
+
+    # ---------- readonly-поля ----------
+    @staticmethod
+    def _set_readonly_text(widget: tk.Text, text: str):
+        widget.configure(state="normal")
+        widget.delete("1.0", "end")
+        if text:
+            widget.insert("1.0", text)
+        widget.configure(state="disabled")
+
+    def _update_related_readonly(self):
+        epic_name = self.var_epic.get().strip()
+        epic = self._epics_by_name.get(epic_name) if epic_name else None
+        epic_goal = (epic.get("goal") or "") if epic else ""
+        self._set_readonly_text(self.txt_epic_goal, epic_goal)
+
+        task_name = self.var_task.get().strip()
+        task = self._tasks_by_name.get(task_name) if task_name else None
+        task_desc = (task.get("description") or "") if task else ""
+        self._set_readonly_text(self.txt_task_desc, task_desc)
 
     # ---------- SQL-фильтр ----------
     def _get_sql_mode(self) -> str:
@@ -539,6 +634,7 @@ class ActionsTab(ttk.Frame):
             self.cmb_role.configure(state="readonly")
             self.cmb_subrole.configure(
                 state="readonly" if self.var_role.get() else "disabled")
+            self._update_related_readonly()
             return
 
         epic = self._epics_by_name.get(epic_name)
@@ -573,6 +669,8 @@ class ActionsTab(ttk.Frame):
         self.cmb_role.configure(state="disabled")
         self.cmb_subrole.configure(state="disabled")
 
+        self._update_related_readonly()
+
     def _on_task_changed(self, _e=None):
         task_name = self.var_task.get().strip()
         if not task_name:
@@ -580,6 +678,7 @@ class ActionsTab(ttk.Frame):
             self.cmb_subrole.configure(
                 state="readonly" if self.var_role.get() else "disabled")
             self.cmb_epic.configure(state="readonly")
+            self._update_related_readonly()
             return
 
         task = self._tasks_by_name.get(task_name)
@@ -614,6 +713,8 @@ class ActionsTab(ttk.Frame):
         self.cmb_role.configure(state="disabled")
         self.cmb_subrole.configure(state="disabled")
 
+        self._update_related_readonly()
+
     def _on_role_selected(self, _e=None):
         if self.var_task.get().strip() or self.var_epic.get().strip():
             return
@@ -621,6 +722,7 @@ class ActionsTab(ttk.Frame):
         role_id = self._roles_by_display.get(role_display) if role_display else None
         self._refresh_subrole_combo(role_id, keep_value=False)
 
+    # ---------- снимок ----------
     def _form_state(self) -> dict:
         return {
             "name":        self.var_name.get().strip(),
@@ -660,6 +762,7 @@ class ActionsTab(ttk.Frame):
             return self._save()
         return True
 
+    # ---------- данные ----------
     def refresh(self):
         self._refresh_role_combo()
         self._refresh_epic_combo()
@@ -721,6 +824,7 @@ class ActionsTab(ttk.Frame):
                 state="readonly" if src["role_id"] is not None else "disabled")
 
         self._recompute_view()
+        self._update_related_readonly()
         self._set_snapshot()
         self.table.select_iid(str(aid))
 
@@ -759,6 +863,7 @@ class ActionsTab(ttk.Frame):
 
         self.table.clear_selection()
         self._recompute_view()
+        self._update_related_readonly()
         self._set_snapshot()
 
     def _on_table_select(self, data):
@@ -968,6 +1073,7 @@ class ActionsTab(ttk.Frame):
                     return
         self.refresh()
 
+    # ---------- workflow ----------
     def _on_start_clicked(self):
         if self.current_id is None:
             messagebox.showinfo("Начать",
@@ -1000,6 +1106,67 @@ class ActionsTab(ttk.Frame):
 
         self.var_end.set(datetime.now().strftime("%H:%M"))
         self._save()
+
+    def _on_copy_clicked(self):
+        if self.current_id is None or self._is_dirty():
+            if self.current_id is None:
+                if not messagebox.askyesno(
+                    "Копировать",
+                    "Текущее действие ещё не сохранено. Сохранить его, чтобы создать копию?",
+                    parent=self.winfo_toplevel(),
+                ):
+                    return
+                if not self._save():
+                    return
+            else:
+                action = ask_unsaved_changes(parent=self.winfo_toplevel())
+                if action == "cancel":
+                    return
+                if action == "save":
+                    if not self._save():
+                        return
+
+            if self.current_id is None:
+                return
+
+        src = self._raw_by_id.get(self.current_id)
+        if not src:
+            return
+
+        new_name = _make_copy_name(src.get("name"))
+
+        status_id = self._status_by_name.get(_DEFAULT_STATUS)
+        if status_id is None:
+            messagebox.showerror(
+                "Ошибка",
+                f"Статус «{_DEFAULT_STATUS}» не найден в справочнике.",
+                parent=self.winfo_toplevel(),
+            )
+            return
+
+        try:
+            new_id = db.insert_action(
+                new_name,
+                src.get("description"),
+                src["date"],
+                None,
+                None,
+                None,
+                None,
+                src.get("task_id"),
+                src.get("epic_id"),
+                src.get("role_id"),
+                src.get("subrole_id"),
+                status_id,
+            )
+        except sqlite3.IntegrityError as e:
+            messagebox.showwarning("Ошибка", str(e),
+                                   parent=self.winfo_toplevel())
+            return
+
+        self.current_id = new_id
+        self.refresh()
+        self._load_into_form(new_id)
 
     def new_from_task(self, task: dict):
         if self._is_dirty():
@@ -1048,6 +1215,7 @@ class ActionsTab(ttk.Frame):
             self.var_status.set(_DEFAULT_STATUS)
 
         self._recompute_view()
+        self._update_related_readonly()
 
     def _open_cal(self, var: tk.StringVar):
         initial = None

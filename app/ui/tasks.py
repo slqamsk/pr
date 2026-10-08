@@ -124,36 +124,123 @@ class TasksTab(ttk.Frame):
                                          anchor="w", padx=8, pady=2, fg="#606060")
         self.lbl_table_status.pack(side="bottom", fill="x", padx=8)
 
+        # --- Общая сетка: 4 колонки.
+        #     Левая колонка (Основное + Эпик) — columns 0-2 (75%).
+        #     Правая колонка (Сроки и вес + Прочее) — column 3 (25%).
         body = ttk.Frame(self._bottom)
         body.pack(fill="both", expand=True, pady=(8, 0))
-        body.columnconfigure(0, weight=1, uniform="f")
+        body.columnconfigure(0, weight=3, uniform="f")
         body.columnconfigure(1, weight=1, uniform="f")
+        body.rowconfigure(0, weight=1)
 
-        # Основное
-        grp_main = ttk.LabelFrame(body, text="Основное", padding=6)
-        grp_main.grid(row=0, column=0, sticky="nsew", padx=(0, 4), pady=(0, 4))
+        # ============================================================
+        # ЛЕВАЯ КОЛОНКА
+        # ============================================================
+        left = ttk.Frame(body)
+        left.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
+        left.columnconfigure(0, weight=1)
+        left.rowconfigure(0, weight=1)   # Основное
+        left.rowconfigure(1, weight=1)   # Эпик
+
+        # ---------- Основное ----------
+        grp_main = ttk.LabelFrame(left, text="Основное", padding=6)
+        grp_main.grid(row=0, column=0, sticky="nsew", pady=(0, 4))
         grp_main.columnconfigure(1, weight=1)
+        grp_main.rowconfigure(0, weight=0)   # Name — фиксировано
+        grp_main.rowconfigure(1, weight=1)   # Description
+        grp_main.rowconfigure(2, weight=1)   # Комментарий
 
         self.var_name = tk.StringVar()
-        ttk.Label(grp_main, text="Name").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=2)
+        ttk.Label(grp_main, text="Name").grid(row=0, column=0, sticky="w",
+                                              padx=(0, 8), pady=(0, 2))
         ttk.Entry(grp_main, textvariable=self.var_name)\
-            .grid(row=0, column=1, sticky="ew", pady=2)
+            .grid(row=0, column=1, sticky="ew", pady=(0, 2))
 
         ttk.Label(grp_main, text="Description").grid(row=1, column=0, sticky="nw",
-                                                     padx=(0, 8), pady=2)
+                                                     padx=(0, 8), pady=(0, 4))
         desc_wrap = ttk.Frame(grp_main)
-        desc_wrap.grid(row=1, column=1, sticky="ew", pady=2)
+        desc_wrap.grid(row=1, column=1, sticky="nsew", pady=(0, 4))
         desc_wrap.columnconfigure(0, weight=1)
-        self.txt_desc = tk.Text(desc_wrap, height=2, wrap="word",
+        desc_wrap.rowconfigure(0, weight=1)
+        self.txt_desc = tk.Text(desc_wrap, height=3, wrap="word",
                                 font=("TkDefaultFont", 9), undo=True)
-        self.txt_desc.grid(row=0, column=0, sticky="ew")
+        self.txt_desc.grid(row=0, column=0, sticky="nsew")
         dsb = ttk.Scrollbar(desc_wrap, orient="vertical", command=self.txt_desc.yview)
         self.txt_desc.configure(yscrollcommand=dsb.set)
         dsb.grid(row=0, column=1, sticky="ns")
 
-        # Сроки и вес
-        grp_time = ttk.LabelFrame(body, text="Сроки и вес", padding=6)
-        grp_time.grid(row=0, column=1, sticky="nsew", padx=(4, 0), pady=(0, 4))
+        ttk.Label(grp_main, text="Комментарий").grid(row=2, column=0, sticky="nw",
+                                                     padx=(0, 8))
+        cmt_wrap = ttk.Frame(grp_main)
+        cmt_wrap.grid(row=2, column=1, sticky="nsew")
+        cmt_wrap.columnconfigure(0, weight=1)
+        cmt_wrap.rowconfigure(0, weight=1)
+        self.txt_comment = tk.Text(cmt_wrap, height=3, wrap="word",
+                                   font=("TkDefaultFont", 9), undo=True)
+        self.txt_comment.grid(row=0, column=0, sticky="nsew")
+        csb = ttk.Scrollbar(cmt_wrap, orient="vertical", command=self.txt_comment.yview)
+        self.txt_comment.configure(yscrollcommand=csb.set)
+        csb.grid(row=0, column=1, sticky="ns")
+
+        # ---------- Эпик ----------
+        grp_epic = ttk.LabelFrame(left, text="Эпик", padding=6)
+        grp_epic.grid(row=1, column=0, sticky="nsew", pady=(4, 0))
+        grp_epic.columnconfigure(1, weight=1)
+        grp_epic.rowconfigure(0, weight=0)   # Имя эпика — фиксировано
+        grp_epic.rowconfigure(1, weight=1)   # Цель эпика (readonly)
+        grp_epic.rowconfigure(2, weight=1)   # Комментарий эпика (readonly)
+
+        self.var_epic = tk.StringVar()
+        ttk.Label(grp_epic, text="Имя эпика").grid(row=0, column=0, sticky="w",
+                                                   padx=(0, 8), pady=(0, 2))
+        self.cmb_epic = ttk.Combobox(grp_epic, textvariable=self.var_epic,
+                                     values=[""], state="readonly")
+        self.cmb_epic.grid(row=0, column=1, sticky="ew", pady=(0, 2))
+        self.cmb_epic.bind("<<ComboboxSelected>>", self._on_epic_changed)
+
+        ttk.Label(grp_epic, text="Цель эпика").grid(row=1, column=0, sticky="nw",
+                                                    padx=(0, 8), pady=(0, 4))
+        goal_wrap = ttk.Frame(grp_epic)
+        goal_wrap.grid(row=1, column=1, sticky="nsew", pady=(0, 4))
+        goal_wrap.columnconfigure(0, weight=1)
+        goal_wrap.rowconfigure(0, weight=1)
+        self.txt_epic_goal = tk.Text(goal_wrap, height=3, wrap="word",
+                                     font=("TkDefaultFont", 9),
+                                     bg="#f5f5f5", state="disabled",
+                                     relief="solid", borderwidth=1)
+        self.txt_epic_goal.grid(row=0, column=0, sticky="nsew")
+        gsb = ttk.Scrollbar(goal_wrap, orient="vertical", command=self.txt_epic_goal.yview)
+        self.txt_epic_goal.configure(yscrollcommand=gsb.set)
+        gsb.grid(row=0, column=1, sticky="ns")
+
+        ttk.Label(grp_epic, text="Комментарий").grid(row=2, column=0, sticky="nw",
+                                                     padx=(0, 8))
+        ecmt_wrap = ttk.Frame(grp_epic)
+        ecmt_wrap.grid(row=2, column=1, sticky="nsew")
+        ecmt_wrap.columnconfigure(0, weight=1)
+        ecmt_wrap.rowconfigure(0, weight=1)
+        self.txt_epic_comment = tk.Text(ecmt_wrap, height=3, wrap="word",
+                                        font=("TkDefaultFont", 9),
+                                        bg="#f5f5f5", state="disabled",
+                                        relief="solid", borderwidth=1)
+        self.txt_epic_comment.grid(row=0, column=0, sticky="nsew")
+        ecsb = ttk.Scrollbar(ecmt_wrap, orient="vertical",
+                             command=self.txt_epic_comment.yview)
+        self.txt_epic_comment.configure(yscrollcommand=ecsb.set)
+        ecsb.grid(row=0, column=1, sticky="ns")
+
+        # ============================================================
+        # ПРАВАЯ КОЛОНКА
+        # ============================================================
+        right = ttk.Frame(body)
+        right.grid(row=0, column=1, sticky="nsew")
+        right.columnconfigure(0, weight=1)
+        right.rowconfigure(0, weight=0)   # Сроки и вес — по содержимому
+        right.rowconfigure(1, weight=1)   # Прочее — растягивается
+
+        # ---------- Сроки и вес ----------
+        grp_time = ttk.LabelFrame(right, text="Сроки и вес", padding=6)
+        grp_time.grid(row=0, column=0, sticky="ew", pady=(0, 4))
         grp_time.columnconfigure(1, weight=1)
 
         self.var_deadline = tk.StringVar()
@@ -161,106 +248,85 @@ class TasksTab(ttk.Frame):
                                                  padx=(0, 8), pady=2)
         f_dl = ttk.Frame(grp_time)
         f_dl.grid(row=0, column=1, sticky="w", pady=2)
-        ttk.Entry(f_dl, textvariable=self.var_deadline, width=14).pack(side="left")
+        ttk.Entry(f_dl, textvariable=self.var_deadline, width=12).pack(side="left")
         ttk.Button(f_dl, text="📅", width=3,
                    command=lambda: self._open_cal(self.var_deadline)).pack(side="left", padx=(4, 0))
         ttk.Button(f_dl, text="✕", width=3,
                    command=lambda: self.var_deadline.set("")).pack(side="left", padx=(4, 0))
 
         self.var_pp = tk.StringVar()
-        ttk.Label(grp_time, text="PP").grid(row=1, column=0, sticky="w", padx=(0, 8), pady=2)
+        ttk.Label(grp_time, text="PP").grid(row=1, column=0, sticky="w",
+                                            padx=(0, 8), pady=2)
         ttk.Entry(grp_time, textvariable=self.var_pp, width=10)\
             .grid(row=1, column=1, sticky="w", pady=2)
 
         self.var_p1 = tk.StringVar()
-        ttk.Label(grp_time, text="P1").grid(row=2, column=0, sticky="w", padx=(0, 8), pady=2)
+        ttk.Label(grp_time, text="P1").grid(row=2, column=0, sticky="w",
+                                            padx=(0, 8), pady=2)
         self.cmb_p1 = ttk.Combobox(grp_time, textvariable=self.var_p1,
                                    values=[""] + self._p1_levels,
                                    state="readonly", width=8)
         self.cmb_p1.grid(row=2, column=1, sticky="w", pady=2)
 
         self.var_p2 = tk.StringVar()
-        ttk.Label(grp_time, text="P2").grid(row=3, column=0, sticky="w", padx=(0, 8), pady=2)
+        ttk.Label(grp_time, text="P2").grid(row=3, column=0, sticky="w",
+                                            padx=(0, 8), pady=2)
         ttk.Entry(grp_time, textvariable=self.var_p2, width=10)\
             .grid(row=3, column=1, sticky="w", pady=2)
 
         self.var_pf_display = tk.StringVar()
-        ttk.Label(grp_time, text="PF").grid(row=4, column=0, sticky="w", padx=(0, 8), pady=2)
+        ttk.Label(grp_time, text="PF").grid(row=4, column=0, sticky="w",
+                                            padx=(0, 8), pady=2)
         pf_lbl = ttk.Label(grp_time, textvariable=self.var_pf_display,
                            foreground="#004080", font=("TkDefaultFont", 10, "bold"))
         pf_lbl.grid(row=4, column=1, sticky="w", pady=2)
 
         ttk.Button(grp_time, text="Делать", command=self._on_do_clicked)\
-            .grid(row=0, column=2, rowspan=5, sticky="e", padx=(12, 0), pady=2)
+            .grid(row=5, column=0, columnspan=2, sticky="ew", pady=(6, 0))
 
-        # Привязки
-        grp_links = ttk.LabelFrame(body, text="Привязки", padding=6)
-        grp_links.grid(row=1, column=0, sticky="nsew", padx=(0, 4), pady=(4, 0))
-        grp_links.columnconfigure(1, weight=1)
+        # ---------- Прочее ----------
+        grp_other = ttk.LabelFrame(right, text="Прочее", padding=6)
+        grp_other.grid(row=1, column=0, sticky="nsew", pady=(4, 0))
+        grp_other.columnconfigure(1, weight=1)
 
-        self.var_epic   = tk.StringVar()
         self.var_role   = tk.StringVar()
         self.var_subrole = tk.StringVar()
         self.var_macro  = tk.StringVar()
         self.var_sprint = tk.StringVar()
+        self.var_status = tk.StringVar()
 
-        ttk.Label(grp_links, text="Эпик").grid(row=0, column=0, sticky="w",
+        ttk.Label(grp_other, text="Роль").grid(row=0, column=0, sticky="w",
                                                padx=(0, 8), pady=2)
-        self.cmb_epic = ttk.Combobox(grp_links, textvariable=self.var_epic,
-                                     values=[""], state="readonly", width=32)
-        self.cmb_epic.grid(row=0, column=1, sticky="w", pady=2)
-        self.cmb_epic.bind("<<ComboboxSelected>>", self._on_epic_changed)
-
-        ttk.Label(grp_links, text="Роль").grid(row=1, column=0, sticky="w",
-                                               padx=(0, 8), pady=2)
-        self.cmb_role = ttk.Combobox(grp_links, textvariable=self.var_role,
-                                     values=[], state="readonly", width=32)
-        self.cmb_role.grid(row=1, column=1, sticky="w", pady=2)
+        self.cmb_role = ttk.Combobox(grp_other, textvariable=self.var_role,
+                                     values=[], state="readonly")
+        self.cmb_role.grid(row=0, column=1, sticky="ew", pady=2)
         self.cmb_role.bind("<<ComboboxSelected>>", self._on_role_selected)
 
-        ttk.Label(grp_links, text="Подроль").grid(row=2, column=0, sticky="w",
+        ttk.Label(grp_other, text="Подроль").grid(row=1, column=0, sticky="w",
                                                   padx=(0, 8), pady=2)
-        self.cmb_subrole = ttk.Combobox(grp_links, textvariable=self.var_subrole,
-                                        values=[], state="disabled", width=32)
-        self.cmb_subrole.grid(row=2, column=1, sticky="w", pady=2)
+        self.cmb_subrole = ttk.Combobox(grp_other, textvariable=self.var_subrole,
+                                        values=[], state="disabled")
+        self.cmb_subrole.grid(row=1, column=1, sticky="ew", pady=2)
 
-        ttk.Label(grp_links, text="Macro").grid(row=3, column=0, sticky="w",
+        ttk.Label(grp_other, text="Macro").grid(row=2, column=0, sticky="w",
                                                 padx=(0, 8), pady=2)
-        self.cmb_macro = ttk.Combobox(grp_links, textvariable=self.var_macro,
-                                      values=[""], state="readonly", width=32)
-        self.cmb_macro.grid(row=3, column=1, sticky="w", pady=2)
+        self.cmb_macro = ttk.Combobox(grp_other, textvariable=self.var_macro,
+                                      values=[""], state="readonly")
+        self.cmb_macro.grid(row=2, column=1, sticky="ew", pady=2)
         self.cmb_macro.bind("<<ComboboxSelected>>", self._on_macro_changed)
 
-        ttk.Label(grp_links, text="Sprint").grid(row=4, column=0, sticky="w",
+        ttk.Label(grp_other, text="Sprint").grid(row=3, column=0, sticky="w",
                                                  padx=(0, 8), pady=2)
-        self.cmb_sprint = ttk.Combobox(grp_links, textvariable=self.var_sprint,
-                                       values=[""], state="disabled", width=32)
-        self.cmb_sprint.grid(row=4, column=1, sticky="w", pady=2)
+        self.cmb_sprint = ttk.Combobox(grp_other, textvariable=self.var_sprint,
+                                       values=[""], state="disabled")
+        self.cmb_sprint.grid(row=3, column=1, sticky="ew", pady=2)
 
-        # Прочее
-        grp_other = ttk.LabelFrame(body, text="Прочее", padding=6)
-        grp_other.grid(row=1, column=1, sticky="nsew", padx=(4, 0), pady=(4, 0))
-        grp_other.columnconfigure(1, weight=1)
-
-        self.var_status = tk.StringVar()
-        ttk.Label(grp_other, text="Статус").grid(row=0, column=0, sticky="w",
+        ttk.Label(grp_other, text="Статус").grid(row=4, column=0, sticky="w",
                                                  padx=(0, 8), pady=2)
         self.cmb_status = ttk.Combobox(grp_other, textvariable=self.var_status,
                                        values=[s["name"] for s in self._statuses],
-                                       state="readonly", width=12)
-        self.cmb_status.grid(row=0, column=1, sticky="w", pady=2)
-
-        ttk.Label(grp_other, text="Комментарий").grid(row=1, column=0, sticky="nw",
-                                                      padx=(0, 8), pady=2)
-        cmt_wrap = ttk.Frame(grp_other)
-        cmt_wrap.grid(row=1, column=1, sticky="ew", pady=2)
-        cmt_wrap.columnconfigure(0, weight=1)
-        self.txt_comment = tk.Text(cmt_wrap, height=2, wrap="word",
-                                   font=("TkDefaultFont", 9), undo=True)
-        self.txt_comment.grid(row=0, column=0, sticky="ew")
-        csb = ttk.Scrollbar(cmt_wrap, orient="vertical", command=self.txt_comment.yview)
-        self.txt_comment.configure(yscrollcommand=csb.set)
-        csb.grid(row=0, column=1, sticky="ns")
+                                       state="readonly")
+        self.cmb_status.grid(row=4, column=1, sticky="ew", pady=2)
 
         for v in (self.var_p1, self.var_p2, self.var_deadline,
                   self.var_pp, self.var_status):
@@ -271,6 +337,23 @@ class TasksTab(ttk.Frame):
             self._save_ui_state_impl()
         if hasattr(self, "table") and hasattr(self.table, "save_ui_state"):
             self.table.save_ui_state()
+
+    # ---------- readonly-поля эпика ----------
+    @staticmethod
+    def _set_readonly_text(widget: tk.Text, text: str):
+        widget.configure(state="normal")
+        widget.delete("1.0", "end")
+        if text:
+            widget.insert("1.0", text)
+        widget.configure(state="disabled")
+
+    def _update_epic_context_readonly(self):
+        epic_name = self.var_epic.get().strip()
+        epic = self._epics_by_name.get(epic_name) if epic_name else None
+        goal = (epic.get("goal") or "") if epic else ""
+        comment = (epic.get("comment") or "") if epic else ""
+        self._set_readonly_text(self.txt_epic_goal, goal)
+        self._set_readonly_text(self.txt_epic_comment, comment)
 
     # ---------- PF ----------
     def _recompute_pf(self):
@@ -363,6 +446,7 @@ class TasksTab(ttk.Frame):
             self.cmb_macro.configure(state="readonly")
             self._refresh_sprint_combo(self._macros_by_code.get(self.var_macro.get().strip()))
             self.cmb_sprint.configure(state="readonly" if self.var_macro.get().strip() else "disabled")
+            self._update_epic_context_readonly()
             self._recompute_pf()
             return
 
@@ -413,6 +497,7 @@ class TasksTab(ttk.Frame):
         else:
             self.cmb_sprint.configure(state="disabled")
 
+        self._update_epic_context_readonly()
         self._recompute_pf()
 
     def _on_role_selected(self, _e=None):
@@ -677,6 +762,7 @@ class TasksTab(ttk.Frame):
                                       else "disabled")
 
         self._recompute_pf()
+        self._update_epic_context_readonly()
         self._set_snapshot()
         self.table.select_iid(str(tid))
 
@@ -719,6 +805,7 @@ class TasksTab(ttk.Frame):
 
         self.table.clear_selection()
         self._recompute_pf()
+        self._update_epic_context_readonly()
         self._set_snapshot()
 
     def _on_table_select(self, data):

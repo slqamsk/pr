@@ -328,7 +328,8 @@ def list_epics() -> list[dict]:
 def list_epics_brief() -> list[dict]:
     with cursor() as con:
         rows = con.execute(
-            "SELECT e.id, e.name, e.role_id, e.subrole_id, e.macro_sprint_id "
+            "SELECT e.id, e.name, e.goal, e.comment, "
+            "       e.role_id, e.subrole_id, e.macro_sprint_id "
             "FROM epics e ORDER BY e.name"
         ).fetchall()
         return [dict(r) for r in rows]

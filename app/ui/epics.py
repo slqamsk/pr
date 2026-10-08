@@ -80,85 +80,112 @@ class EpicsTab(ttk.Frame):
 
         form = ttk.LabelFrame(self._bottom, text="Запись", padding=8)
         form.pack(fill="both", expand=True, pady=(8, 0))
+        form.columnconfigure(0, weight=3)
         form.columnconfigure(1, weight=1)
+        form.rowconfigure(0, weight=1)
 
-        self.var_name       = tk.StringVar()
-        self.var_role       = tk.StringVar()
-        self.var_subrole    = tk.StringVar()
-        self.var_deadline   = tk.StringVar()
-        self.var_status     = tk.StringVar()
-        self.var_macro      = tk.StringVar(value="")
-        self.var_priority   = tk.StringVar()
+        # ---------- Левая колонка: Epic Name / Цель / Комментарий ----------
+        left = ttk.Frame(form)
+        left.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        left.columnconfigure(0, weight=0)   # подписи
+        left.columnconfigure(1, weight=1)   # значения
+        left.rowconfigure(0, weight=0)      # Epic Name — фиксирован
+        left.rowconfigure(1, weight=1)      # Цель — растёт
+        left.rowconfigure(2, weight=1)      # Комментарий — растёт
 
-        r = 0
-        ttk.Label(form, text="Epic Name").grid(row=r, column=0, sticky="w", padx=(0, 8), pady=2)
-        ttk.Entry(form, textvariable=self.var_name)\
-            .grid(row=r, column=1, sticky="ew", pady=2)
+        # --- Epic Name (однострочный, фиксирован по высоте) ---
+        ttk.Label(left, text="Epic Name").grid(row=0, column=0, sticky="w",
+                                               padx=(0, 8), pady=(0, 4))
+        self.var_name = tk.StringVar()
+        ttk.Entry(left, textvariable=self.var_name)\
+            .grid(row=0, column=1, sticky="ew", pady=(0, 4))
 
-        r += 1
-        ttk.Label(form, text="Цель").grid(row=r, column=0, sticky="nw", padx=(0, 8), pady=2)
-        goal_wrap = ttk.Frame(form)
-        goal_wrap.grid(row=r, column=1, sticky="ew", pady=2)
+        # --- Цель (Text, растягивается) ---
+        ttk.Label(left, text="Цель").grid(row=1, column=0, sticky="nw",
+                                          padx=(0, 8), pady=(0, 4))
+        goal_wrap = ttk.Frame(left)
+        goal_wrap.grid(row=1, column=1, sticky="nsew", pady=(0, 4))
         goal_wrap.columnconfigure(0, weight=1)
-        self.txt_goal = tk.Text(goal_wrap, height=2, wrap="word",
+        goal_wrap.rowconfigure(0, weight=1)
+        self.txt_goal = tk.Text(goal_wrap, height=4, wrap="word",
                                 font=("TkDefaultFont", 9), undo=True)
-        self.txt_goal.grid(row=0, column=0, sticky="ew")
+        self.txt_goal.grid(row=0, column=0, sticky="nsew")
         gsb = ttk.Scrollbar(goal_wrap, orient="vertical", command=self.txt_goal.yview)
         self.txt_goal.configure(yscrollcommand=gsb.set)
         gsb.grid(row=0, column=1, sticky="ns")
 
-        r += 1
-        ttk.Label(form, text="Роль").grid(row=r, column=0, sticky="w", padx=(0, 8), pady=2)
-        self.cmb_role = ttk.Combobox(form, textvariable=self.var_role,
-                                     values=[], state="readonly", width=32)
-        self.cmb_role.grid(row=r, column=1, sticky="w", pady=2)
+        # --- Комментарий (Text, растягивается) ---
+        ttk.Label(left, text="Комментарий").grid(row=2, column=0, sticky="nw",
+                                                 padx=(0, 8))
+        cmt_wrap = ttk.Frame(left)
+        cmt_wrap.grid(row=2, column=1, sticky="nsew")
+        cmt_wrap.columnconfigure(0, weight=1)
+        cmt_wrap.rowconfigure(0, weight=1)
+        self.txt_comment = tk.Text(cmt_wrap, height=4, wrap="word",
+                                   font=("TkDefaultFont", 9), undo=True)
+        self.txt_comment.grid(row=0, column=0, sticky="nsew")
+        csb = ttk.Scrollbar(cmt_wrap, orient="vertical", command=self.txt_comment.yview)
+        self.txt_comment.configure(yscrollcommand=csb.set)
+        csb.grid(row=0, column=1, sticky="ns")
+
+        # ---------- Правая колонка: остальные поля ----------
+        right = ttk.Frame(form)
+        right.grid(row=0, column=1, sticky="nsew")
+        right.columnconfigure(1, weight=1)
+
+        self.var_role     = tk.StringVar()
+        self.var_subrole  = tk.StringVar()
+        self.var_deadline = tk.StringVar()
+        self.var_status   = tk.StringVar()
+        self.var_macro    = tk.StringVar(value="")
+        self.var_priority = tk.StringVar()
+
+        r = 0
+        ttk.Label(right, text="Роль").grid(row=r, column=0, sticky="w",
+                                           padx=(0, 8), pady=2)
+        self.cmb_role = ttk.Combobox(right, textvariable=self.var_role,
+                                     values=[], state="readonly")
+        self.cmb_role.grid(row=r, column=1, sticky="ew", pady=2)
         self.cmb_role.bind("<<ComboboxSelected>>", self._on_role_selected)
 
         r += 1
-        ttk.Label(form, text="Подроль").grid(row=r, column=0, sticky="w", padx=(0, 8), pady=2)
-        self.cmb_subrole = ttk.Combobox(form, textvariable=self.var_subrole,
-                                        values=[], state="disabled", width=32)
-        self.cmb_subrole.grid(row=r, column=1, sticky="w", pady=2)
+        ttk.Label(right, text="Подроль").grid(row=r, column=0, sticky="w",
+                                              padx=(0, 8), pady=2)
+        self.cmb_subrole = ttk.Combobox(right, textvariable=self.var_subrole,
+                                        values=[], state="disabled")
+        self.cmb_subrole.grid(row=r, column=1, sticky="ew", pady=2)
 
         r += 1
-        ttk.Label(form, text="Дедлайн").grid(row=r, column=0, sticky="w", padx=(0, 8), pady=2)
-        f_dl = ttk.Frame(form)
+        ttk.Label(right, text="Дедлайн").grid(row=r, column=0, sticky="w",
+                                              padx=(0, 8), pady=2)
+        f_dl = ttk.Frame(right)
         f_dl.grid(row=r, column=1, sticky="w", pady=2)
-        ttk.Entry(f_dl, textvariable=self.var_deadline, width=14).pack(side="left")
+        ttk.Entry(f_dl, textvariable=self.var_deadline, width=12).pack(side="left")
         ttk.Button(f_dl, text="📅", width=3,
                    command=lambda: self._open_cal(self.var_deadline)).pack(side="left", padx=(4, 0))
         ttk.Button(f_dl, text="✕", width=3,
                    command=lambda: self.var_deadline.set("")).pack(side="left", padx=(4, 0))
 
         r += 1
-        ttk.Label(form, text="Статус").grid(row=r, column=0, sticky="w", padx=(0, 8), pady=2)
-        ttk.Combobox(form, textvariable=self.var_status,
+        ttk.Label(right, text="Статус").grid(row=r, column=0, sticky="w",
+                                             padx=(0, 8), pady=2)
+        ttk.Combobox(right, textvariable=self.var_status,
                      values=[s["name"] for s in self._statuses],
-                     state="readonly", width=12)\
+                     state="readonly")\
+            .grid(row=r, column=1, sticky="ew", pady=2)
+
+        r += 1
+        ttk.Label(right, text="Macro").grid(row=r, column=0, sticky="w",
+                                            padx=(0, 8), pady=2)
+        self.cmb_macro = ttk.Combobox(right, textvariable=self.var_macro,
+                                      values=[""], state="readonly")
+        self.cmb_macro.grid(row=r, column=1, sticky="ew", pady=2)
+
+        r += 1
+        ttk.Label(right, text="P").grid(row=r, column=0, sticky="w",
+                                        padx=(0, 8), pady=2)
+        ttk.Entry(right, textvariable=self.var_priority, width=8)\
             .grid(row=r, column=1, sticky="w", pady=2)
-
-        r += 1
-        ttk.Label(form, text="Macro").grid(row=r, column=0, sticky="w", padx=(0, 8), pady=2)
-        self.cmb_macro = ttk.Combobox(form, textvariable=self.var_macro,
-                                      values=[""], state="readonly", width=14)
-        self.cmb_macro.grid(row=r, column=1, sticky="w", pady=2)
-
-        r += 1
-        ttk.Label(form, text="P").grid(row=r, column=0, sticky="w", padx=(0, 8), pady=2)
-        ttk.Entry(form, textvariable=self.var_priority, width=6)\
-            .grid(row=r, column=1, sticky="w", pady=2)
-
-        r += 1
-        ttk.Label(form, text="Комментарий").grid(row=r, column=0, sticky="nw", padx=(0, 8), pady=2)
-        cmt_wrap = ttk.Frame(form)
-        cmt_wrap.grid(row=r, column=1, sticky="ew", pady=2)
-        cmt_wrap.columnconfigure(0, weight=1)
-        self.txt_comment = tk.Text(cmt_wrap, height=2, wrap="word",
-                                   font=("TkDefaultFont", 9), undo=True)
-        self.txt_comment.grid(row=0, column=0, sticky="ew")
-        csb = ttk.Scrollbar(cmt_wrap, orient="vertical", command=self.txt_comment.yview)
-        self.txt_comment.configure(yscrollcommand=csb.set)
-        csb.grid(row=0, column=1, sticky="ns")
 
     def save_ui_state(self):
         if self._save_ui_state_impl:
