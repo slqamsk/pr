@@ -1,0 +1,7 @@
+{
+  "pomodoro_minutes": 25,
+  "break_minutes": 5,
+  "idle_threshold": 60,
+  "activity_threshold": 5,
+  "poll_interval": 5
+}
