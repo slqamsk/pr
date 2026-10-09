@@ -16,15 +16,14 @@ from ui.pf import compute_pf
 
 
 _TASKS_COLUMNS = [
-    {"key": "pf",          "title": "PF",        "width": 60,  "wrap": False},
-    {"key": "name",        "title": "Name",      "width": 240, "wrap": True},
+    {"key": "name",        "title": "Name",      "width": 240, "wrap": False},
     {"key": "deadline",    "title": "Дедлайн",   "width": 90,  "wrap": False},
+    {"key": "pp",          "title": "PP",        "width": 45,  "wrap": False},
     {"key": "p1",          "title": "P1",        "width": 45,  "wrap": False},
     {"key": "p2",          "title": "P2",        "width": 45,  "wrap": False},
-    {"key": "pp",          "title": "PP",        "width": 45,  "wrap": False},
     {"key": "status_name", "title": "Статус",    "width": 90,  "wrap": False},
     {"key": "sprint_code", "title": "Sprint",    "width": 90,  "wrap": False},
-    {"key": "comment",     "title": "Комментарий","width": 200, "wrap": True},
+    {"key": "pf",          "title": "PF",        "width": 60,  "wrap": False},
 ]
 
 
@@ -57,9 +56,9 @@ class EpicDetailsDialog(tk.Toplevel):
         self._p1_levels = [p["name"] for p in db.list_p1_levels()]
         self._roles_by_display = {}
         self._subrole_display_to_id = {}
-        self._macros_by_code = {}    # code -> id
-        self._sprints_by_code = {}   # code -> id (для макро эпика)
-        self._tasks_by_id = {}       # id -> row
+        self._macros_by_code = {}
+        self._sprints_by_code = {}
+        self._tasks_by_id = {}
 
         self._pf_pomodoro = db.get_pomodoro_per_day()
 
@@ -78,22 +77,26 @@ class EpicDetailsDialog(tk.Toplevel):
         self._refresh_tasks_list()
         self._clear_task_form()
 
-        # размеры: сначала нормальный, потом развернуть
+        # Размер: открываем сразу развёрнутым в левом верхнем углу (0, 0).
         self.update_idletasks()
         scr_w = self.winfo_screenwidth()
         scr_h = self.winfo_screenheight()
-        w = min(1500, scr_w - 60)
-        h = min(900, scr_h - 120)
-        px = parent.winfo_rootx() + (parent.winfo_width() - w) // 2
-        py = parent.winfo_rooty() + (parent.winfo_height() - h) // 2
-        px = max(0, min(px, scr_w - w))
-        py = max(0, min(py, scr_h - h - 60))
-        self.geometry(f"{w}x{h}+{px}+{py}")
-        self.update_idletasks()
-        self._saved_geometry = self.geometry()
-        self._apply_maximized()
+
+        # Нормальная геометрия для «Восстановить» — примерно по центру.
+        w_norm = min(1200, scr_w - 100)
+        h_norm = min(800, scr_h - 100)
+        x_norm = (scr_w - w_norm) // 2
+        y_norm = (scr_h - h_norm) // 2
+        self._saved_geometry = f"{w_norm}x{h_norm}+{x_norm}+{y_norm}"
+
+        # Сразу развёрнутое — в самом углу (0, 0).
+        w_max = scr_w - 20
+        h_max = scr_h - 100
+        self.geometry(f"{w_max}x{h_max}+0+0")
+        self._maximized = True
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
+        self.bind("<Escape>", lambda e: self._on_close())
 
         parent.wait_window(self)
 
@@ -102,13 +105,12 @@ class EpicDetailsDialog(tk.Toplevel):
         outer = ttk.Frame(self, padding=10)
         outer.pack(fill="both", expand=True)
 
+        # Верхняя панель — только «Восстановить»
         toolbar = ttk.Frame(outer)
         toolbar.pack(fill="x", pady=(0, 6))
-        self.btn_maximize = ttk.Button(toolbar, text="Развернуть",
+        self.btn_maximize = ttk.Button(toolbar, text="Восстановить",
                                        command=self._toggle_maximize)
         self.btn_maximize.pack(side="left")
-        ttk.Button(toolbar, text="Закрыть",
-                   command=self._on_close).pack(side="right")
 
         cols = ttk.Frame(outer)
         cols.pack(fill="both", expand=True)
@@ -119,17 +121,6 @@ class EpicDetailsDialog(tk.Toplevel):
         self._build_left(cols)
         self._build_right(cols)
 
-    def _apply_maximized(self):
-        try:
-            scr_w = self.winfo_screenwidth()
-            scr_h = self.winfo_screenheight()
-            self.geometry(f"{scr_w - 20}x{scr_h - 80}+10+5")
-            self._maximized = True
-            if hasattr(self, "btn_maximize"):
-                self.btn_maximize.configure(text="Восстановить")
-        except tk.TclError:
-            pass
-
     def _toggle_maximize(self):
         try:
             if self._maximized:
@@ -139,7 +130,11 @@ class EpicDetailsDialog(tk.Toplevel):
                 self.btn_maximize.configure(text="Развернуть")
             else:
                 self._saved_geometry = self.geometry()
-                self._apply_maximized()
+                scr_w = self.winfo_screenwidth()
+                scr_h = self.winfo_screenheight()
+                self.geometry(f"{scr_w - 20}x{scr_h - 100}+0+0")
+                self._maximized = True
+                self.btn_maximize.configure(text="Восстановить")
         except tk.TclError:
             pass
 
@@ -168,13 +163,6 @@ class EpicDetailsDialog(tk.Toplevel):
                                          padx=(0, 6), pady=2)
         ttk.Entry(grp, textvariable=self.var_epic_name)\
             .grid(row=r, column=1, sticky="ew", pady=2)
-
-        r += 1
-        ttk.Label(grp, text="Цель").grid(row=r, column=0, sticky="nw",
-                                         padx=(0, 6), pady=2)
-        self.txt_epic_goal = tk.Text(grp, height=3, wrap="word",
-                                     font=("TkDefaultFont", 9), undo=True)
-        self.txt_epic_goal.grid(row=r, column=1, sticky="ew", pady=2)
 
         r += 1
         ttk.Label(grp, text="Роль").grid(row=r, column=0, sticky="w",
@@ -230,10 +218,19 @@ class EpicDetailsDialog(tk.Toplevel):
         ttk.Entry(grp, textvariable=self.var_epic_priority, width=8)\
             .grid(row=r, column=1, sticky="w", pady=2)
 
+        # Цель (предпоследняя, 6 строк)
+        r += 1
+        ttk.Label(grp, text="Цель").grid(row=r, column=0, sticky="nw",
+                                         padx=(0, 6), pady=2)
+        self.txt_epic_goal = tk.Text(grp, height=6, wrap="word",
+                                     font=("TkDefaultFont", 9), undo=True)
+        self.txt_epic_goal.grid(row=r, column=1, sticky="ew", pady=2)
+
+        # Комментарий (последний, 6 строк)
         r += 1
         ttk.Label(grp, text="Комментарий").grid(row=r, column=0, sticky="nw",
                                                 padx=(0, 6), pady=2)
-        self.txt_epic_comment = tk.Text(grp, height=3, wrap="word",
+        self.txt_epic_comment = tk.Text(grp, height=6, wrap="word",
                                         font=("TkDefaultFont", 9), undo=True)
         self.txt_epic_comment.grid(row=r, column=1, sticky="ew", pady=2)
 
@@ -249,21 +246,26 @@ class EpicDetailsDialog(tk.Toplevel):
         frame.columnconfigure(0, weight=1)
         frame.rowconfigure(0, weight=1)
         frame.rowconfigure(1, weight=0)
-        frame.rowconfigure(2, weight=0)
 
-        # Список задач
-        grp_tasks = ttk.LabelFrame(frame, text="Задачи эпика", padding=4)
-        grp_tasks.grid(row=0, column=0, sticky="nsew")
+        self.right_paned = ttk.PanedWindow(frame, orient="vertical")
+        self.right_paned.grid(row=0, column=0, sticky="nsew")
+
+        # Список задач — autofit + wrap_when_narrow
+        grp_tasks = ttk.LabelFrame(self.right_paned, text="Задачи эпика",
+                                   padding=4)
         grp_tasks.columnconfigure(0, weight=1)
         grp_tasks.rowconfigure(0, weight=1)
-        self.tasks_table = ScrollableTable(grp_tasks, _TASKS_COLUMNS,
-                                           on_select=self._on_task_select,
-                                           settings_key=None)
+        self.tasks_table = ScrollableTable(
+            grp_tasks, _TASKS_COLUMNS,
+            on_select=self._on_task_select,
+            settings_key=None,
+            autofit=True,
+            wrap_when_narrow=True,
+        )
         self.tasks_table.grid(row=0, column=0, sticky="nsew")
 
         # Форма задачи
-        grp_task = ttk.LabelFrame(frame, text="Задача", padding=6)
-        grp_task.grid(row=1, column=0, sticky="ew", pady=(4, 0))
+        grp_task = ttk.LabelFrame(self.right_paned, text="Задача", padding=6)
         grp_task.columnconfigure(1, weight=1)
 
         self.var_task_name     = tk.StringVar()
@@ -280,14 +282,6 @@ class EpicDetailsDialog(tk.Toplevel):
                                               padx=(0, 6), pady=2)
         ttk.Entry(grp_task, textvariable=self.var_task_name)\
             .grid(row=r, column=1, sticky="ew", pady=2)
-
-        r += 1
-        ttk.Label(grp_task, text="Description").grid(row=r, column=0,
-                                                     sticky="nw",
-                                                     padx=(0, 6), pady=2)
-        self.txt_task_desc = tk.Text(grp_task, height=4, wrap="word",
-                                     font=("TkDefaultFont", 9), undo=True)
-        self.txt_task_desc.grid(row=r, column=1, sticky="ew", pady=2)
 
         r += 1
         ttk.Label(grp_task, text="Дедлайн").grid(row=r, column=0, sticky="w",
@@ -346,17 +340,29 @@ class EpicDetailsDialog(tk.Toplevel):
                      state="readonly")\
             .grid(row=r, column=1, sticky="ew", pady=2)
 
+        # Description
+        r += 1
+        ttk.Label(grp_task, text="Description").grid(row=r, column=0,
+                                                     sticky="nw",
+                                                     padx=(0, 6), pady=2)
+        self.txt_task_desc = tk.Text(grp_task, height=6, wrap="word",
+                                     font=("TkDefaultFont", 9), undo=True)
+        self.txt_task_desc.grid(row=r, column=1, sticky="ew", pady=2)
+
+        # Комментарий
         r += 1
         ttk.Label(grp_task, text="Комментарий").grid(row=r, column=0,
                                                      sticky="nw",
                                                      padx=(0, 6), pady=2)
-        self.txt_task_comment = tk.Text(grp_task, height=3, wrap="word",
+        self.txt_task_comment = tk.Text(grp_task, height=5, wrap="word",
                                         font=("TkDefaultFont", 9), undo=True)
         self.txt_task_comment.grid(row=r, column=1, sticky="ew", pady=2)
 
-        # Кнопки
+        self.right_paned.add(grp_tasks, weight=3)
+        self.right_paned.add(grp_task, weight=2)
+
         btns = ttk.Frame(frame)
-        btns.grid(row=2, column=0, sticky="ew", pady=(6, 0))
+        btns.grid(row=1, column=0, sticky="ew", pady=(6, 0))
         ttk.Button(btns, text="Новая задача", command=self._new_task)\
             .pack(side="left")
         ttk.Button(btns, text="Сохранить задачу", command=self._save_task)\
@@ -364,7 +370,6 @@ class EpicDetailsDialog(tk.Toplevel):
         ttk.Button(btns, text="Удалить", command=self._delete_task)\
             .pack(side="left")
 
-        # Автопересчёт PF на лету
         for v in (self.var_task_p1, self.var_task_p2, self.var_task_pp,
                   self.var_task_deadline, self.var_task_status):
             v.trace_add("write", lambda *_: self._recompute_task_pf())
@@ -384,7 +389,6 @@ class EpicDetailsDialog(tk.Toplevel):
                                       list(self._macros_by_code.keys()))
 
     def _refresh_sprint_combo(self):
-        """Sprint у задачи — из макро эпика (текущее значение формы эпика)."""
         macro_code = self.var_epic_macro.get().strip()
         if not macro_code:
             self._sprints_by_code = {}
@@ -421,9 +425,7 @@ class EpicDetailsDialog(tk.Toplevel):
         self.var_epic_subrole.set("")
 
     def _on_epic_macro_changed(self, _e=None):
-        # макро эпика влияет на доступность спринта у задачи
         self._refresh_sprint_combo()
-        # сбрасываем спринт, если он не из нового макро
         current = self.var_task_sprint.get().strip()
         if current and current not in self._sprints_by_code:
             self.var_task_sprint.set("")
@@ -438,7 +440,7 @@ class EpicDetailsDialog(tk.Toplevel):
             self.var_epic_role.set(_role_display(r["role_id"], r["role_name"]))
         else:
             self.var_epic_role.set("")
-        self._on_epic_role_selected()  # заполнить список подролей
+        self._on_epic_role_selected()
 
         self.var_epic_subrole.set(r.get("subrole_name") or "")
         self.var_epic_deadline.set(
@@ -449,7 +451,6 @@ class EpicDetailsDialog(tk.Toplevel):
             "" if r.get("priority") is None else str(r["priority"]))
         self._set_text(self.txt_epic_comment, r.get("comment") or "")
 
-        # после установки макро — обновить доступность спринта у задачи
         self._refresh_sprint_combo()
 
     def _reload_epic_row(self):
@@ -572,15 +573,14 @@ class EpicDetailsDialog(tk.Toplevel):
             pf_val = t.get("pf")
             display.append({
                 "id":          t["id"],
-                "pf":          "" if pf_val is None else f"{float(pf_val):.2f}",
                 "name":        t["name"] or "",
                 "deadline":    _to_ru(t["deadline"]) if t["deadline"] else "",
+                "pp":          "" if t["pp"] is None else f"{t['pp']:.1f}",
                 "p1":          t["p1"] or "",
                 "p2":          "" if t["p2"] is None else t["p2"],
-                "pp":          "" if t["pp"] is None else f"{t['pp']:.1f}",
                 "status_name": t["status_name"] or "",
                 "sprint_code": t["sprint_code"] or "",
-                "comment":     t["comment"] or "",
+                "pf":          "" if pf_val is None else f"{float(pf_val):.2f}",
             })
         self.tasks_table.set_rows(display, iid_key="id")
         if self.current_task_id is not None and self.current_task_id in self._tasks_by_id:
@@ -725,7 +725,6 @@ class EpicDetailsDialog(tk.Toplevel):
                                    parent=self)
             return False
 
-        # Роль/подроль/макро — из формы эпика (актуальные)
         role_display = self.var_epic_role.get().strip()
         role_id = self._roles_by_display.get(role_display) if role_display else None
 
@@ -736,7 +735,6 @@ class EpicDetailsDialog(tk.Toplevel):
         macro_code = self.var_epic_macro.get().strip()
         macro_id = self._macros_by_code.get(macro_code) if macro_code else None
 
-        # Sprint — только из выбранного
         sprint_code = self.var_task_sprint.get().strip()
         sprint_id = None
         if sprint_code:
@@ -782,7 +780,6 @@ class EpicDetailsDialog(tk.Toplevel):
                 messagebox.showwarning("Валидация", msg, parent=self)
             return False
 
-        # Пересчёт PF и сохранение в БД
         pf = compute_pf(self.var_task_status.get().strip(),
                         p1, p2, deadline, pp,
                         pomodoro_per_day=self._pf_pomodoro)
