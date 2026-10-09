@@ -3,6 +3,7 @@ import calendar
 import json
 import tkinter as tk
 from tkinter import ttk, messagebox
+import tkinter.font as tkfont
 from datetime import date
 
 from db import db
@@ -44,18 +45,10 @@ def bind_mousewheel_recursive(widget, canvas):
     _bind(widget)
 
 
-
 def setup_vertical_paned(parent, sash_key):
     """
     Создаёт вертикальный PanedWindow. Возвращает (paned, save_ui_state).
-    Панели добавляются вызывающим кодом — как дочерние виджеты paned:
-
-        paned, save = setup_vertical_paned(self, "ui.sash.X")
-        table = ScrollableTable(paned, ...)
-        paned.add(table, weight=2)
-        bottom = ttk.Frame(paned)
-        paned.add(bottom, weight=1)
-
+    Панели добавляются вызывающим кодом — как дочерние виджеты paned.
     Позиция sash хранится в settings по ключу sash_key.
     """
     paned = ttk.PanedWindow(parent, orient="vertical")
@@ -92,8 +85,6 @@ def setup_vertical_paned(parent, sash_key):
     paned.bind("<ButtonRelease-1>", _save_sash)
 
     return paned, save_ui_state
-
-
 
 
 # ============== CalendarPopup ==============
@@ -248,20 +239,30 @@ class ScrollableTable(ttk.Frame):
     CELL_PAD_X = 6
     CELL_PAD_Y = 4
     BORDER    = 1
+    HEADER_H  = 32
 
-    def __init__(self, parent, columns, on_select=None, settings_key=None):
+    def __init__(self, parent, columns, on_select=None, settings_key=None,
+                 autofit=False, wrap_when_narrow=False):
+        """
+        wrap_when_narrow: если True, при сужении колонки текст переносится;
+                          если False (по умолчанию), при сужении текст обрезается.
+        """
         super().__init__(parent)
         self.columns = list(columns)
         self.widths = {c["key"]: int(c["width"]) for c in columns}
         self.on_select = on_select
         self.settings_key = settings_key
+        self.autofit = autofit
+        self.wrap_when_narrow = wrap_when_narrow
         self._rows = []
         self._selected = None
         self._drag = None
         self._handles = []
+        self._header_labels = []
         self._load_widths()
         self._build()
 
+    # ---------------- сохранение ширин ----------------
     def _load_widths(self):
         if not self.settings_key:
             return
@@ -291,32 +292,36 @@ class ScrollableTable(ttk.Frame):
             pass
 
     def save_ui_state(self):
-        """Вызывается при закрытии окна — на всякий случай сохраняет ширины ещё раз."""
         self._save_widths()
 
-
+    # ---------------- построение ----------------
     def _build(self):
-        self.header_canvas = tk.Canvas(self, height=32, highlightthickness=0,
-                                       bg=self.BG_HEAD)
-        self.header_canvas.pack(fill="x", side="top")
-        self.header = tk.Frame(self.header_canvas, bg=self.BG_HEAD)
+        self.rowconfigure(1, weight=1)
+        self.columnconfigure(0, weight=1)
+
+        self.header_canvas = tk.Canvas(self, height=self.HEADER_H,
+                                       highlightthickness=0, bg=self.BG_HEAD)
+        self.header_canvas.grid(row=0, column=0, sticky="ew")
+        self.header = tk.Frame(self.header_canvas, bg=self.BG_HEAD,
+                               width=100, height=self.HEADER_H)
         self.header_canvas.create_window((0, 0), window=self.header, anchor="nw")
 
-        wrap = ttk.Frame(self)
-        wrap.pack(fill="both", expand=True)
-        wrap.rowconfigure(0, weight=1)
-        wrap.columnconfigure(0, weight=1)
+        self._header_spacer = tk.Frame(self, width=1, bg=self.BG_HEAD)
+        self._header_spacer.grid(row=0, column=1, sticky="nsew")
+        self._header_spacer.grid_propagate(False)
 
-        self.vsb = ttk.Scrollbar(wrap, orient="vertical")
-        self.hsb = ttk.Scrollbar(wrap, orient="horizontal")
-        self.body_canvas = tk.Canvas(wrap, highlightthickness=0, bg=self.BG_NORM,
-                                     yscrollcommand=self.vsb.set,
-                                     xscrollcommand=self._on_xscroll)
-        self.vsb.configure(command=self.body_canvas.yview)
-        self.hsb.configure(command=self._xview)
-        self.body_canvas.grid(row=0, column=0, sticky="nsew")
-        self.vsb.grid(row=0, column=1, sticky="ns")
-        self.hsb.grid(row=1, column=0, sticky="ew")
+        self.body_canvas = tk.Canvas(self, highlightthickness=0, bg=self.BG_NORM)
+        self.body_canvas.grid(row=1, column=0, sticky="nsew")
+
+        self.vsb = ttk.Scrollbar(self, orient="vertical",
+                                 command=self.body_canvas.yview)
+        self.vsb.grid(row=1, column=1, sticky="ns")
+        self.body_canvas.configure(yscrollcommand=self.vsb.set)
+
+        self.hsb = ttk.Scrollbar(self, orient="horizontal",
+                                 command=self._xview)
+        self.hsb.grid(row=2, column=0, columnspan=2, sticky="ew")
+        self.body_canvas.configure(xscrollcommand=self._on_xscroll)
 
         self.body = tk.Frame(self.body_canvas, bg=self.BG_NORM)
         self.body_canvas.create_window((0, 0), window=self.body, anchor="nw")
@@ -325,40 +330,58 @@ class ScrollableTable(ttk.Frame):
         self.body.bind("<Configure>", self._update_scrollregion)
 
     def _build_header_labels(self):
-        for i, col in enumerate(self.columns):
-            self.header.columnconfigure(i, minsize=self.widths[col["key"]])
+        self._header_labels = []
+        x = 0
+        for col in self.columns:
+            key = col["key"]
+            w = self.widths[key]
             lbl = tk.Label(self.header, text=col["title"], anchor="w",
                            bg=self.BG_HEAD, padx=self.CELL_PAD_X,
                            pady=self.CELL_PAD_Y,
                            highlightthickness=self.BORDER,
                            highlightbackground=self.GRID_CLR,
                            highlightcolor=self.GRID_CLR)
-            lbl.grid(row=0, column=i, sticky="nsew")
+            lbl.place(x=x, y=0, width=w, height=self.HEADER_H)
+            self._header_labels.append(lbl)
+            x += w
         self._build_handles()
+        self._update_header_size()
+
+    def _update_header_size(self):
+        total_w = sum(self.widths[c["key"]] for c in self.columns)
+        self.header.configure(width=total_w, height=self.HEADER_H)
+
+    def _reposition_header_labels(self):
+        x = 0
+        for i, col in enumerate(self.columns):
+            w = self.widths[col["key"]]
+            self._header_labels[i].place_configure(x=x, width=w)
+            x += w
 
     def _build_handles(self):
         for h in self._handles:
             h.destroy()
         self._handles = []
-        for i in range(len(self.columns) - 1):
-            key = self.columns[i]["key"]
-            h = tk.Frame(self.header, width=4, height=32,
+        x = 0
+        for col in self.columns:
+            key = col["key"]
+            x += self.widths[key]
+            h = tk.Frame(self.header, width=4, height=self.HEADER_H,
                          cursor="sb_h_double_arrow", bg="#b0b0b0")
-            h.place(x=0, y=0, width=4, height=32)
+            h.place(x=x - 2, y=0, width=4, height=self.HEADER_H)
             h.lift()
             h.bind("<ButtonPress-1>", lambda e, k=key: self._drag_start(e, k))
             h.bind("<B1-Motion>", self._drag_move)
             h.bind("<ButtonRelease-1>", self._drag_end)
             self._handles.append(h)
-        self._reposition_handles()
 
     def _reposition_handles(self):
         x = 0
         for i, col in enumerate(self.columns):
             x += self.widths[col["key"]]
-            if i < len(self._handles):
-                self._handles[i].place_configure(x=x - 2)
+            self._handles[i].place_configure(x=x - 2)
 
+    # ---------------- скролл ----------------
     def _on_xscroll(self, first, last):
         self.hsb.set(first, last)
         try:
@@ -372,15 +395,15 @@ class ScrollableTable(ttk.Frame):
 
     def _update_scrollregion(self, _e=None):
         self.update_idletasks()
+        total_w = sum(self.widths[c["key"]] for c in self.columns)
         bbox = self.body_canvas.bbox("all")
-        if bbox:
-            self.body_canvas.configure(scrollregion=bbox)
-            self.header_canvas.configure(scrollregion=(bbox[0], 0, bbox[2], 32))
+        body_h = bbox[3] if bbox else 0
+        self.body_canvas.configure(scrollregion=(0, 0, total_w, body_h))
+        self.header_canvas.configure(scrollregion=(0, 0, total_w, self.HEADER_H))
 
+    # ---------------- drag ----------------
     def _drag_start(self, event, key):
         self._drag = (key, event.x_root, self.widths[key])
-        # Ловим движение и отпускание глобально, чтобы не зависеть
-        # от того, успел ли handle уехать под курсором.
         self.bind_all("<B1-Motion>", self._drag_move)
         self.bind_all("<ButtonRelease-1>", self._drag_end)
 
@@ -402,24 +425,55 @@ class ScrollableTable(ttk.Frame):
 
     def _apply_widths(self):
         total_w = 0
-        for i, col in enumerate(self.columns):
-            w = self.widths[col["key"]]
-            self.header.columnconfigure(i, minsize=w)
-            total_w += w
+        for col in self.columns:
+            total_w += self.widths[col["key"]]
+        self._reposition_header_labels()
         for row in self._rows:
             row["frame"].configure(width=total_w)
             self._layout_row(row)
         self._reposition_handles()
+        self._update_header_size()
         self.update_idletasks()
         self._update_scrollregion()
 
+    # ---------------- autofit ----------------
+    def _autofit_widths(self, rows_data):
+        try:
+            base = tkfont.nametofont("TkDefaultFont")
+            f = tkfont.Font(font=base, size=8)
+        except Exception:
+            return
+        padding = 2 * self.CELL_PAD_X + 2 * self.BORDER + 6
+
+        for col in self.columns:
+            key = col["key"]
+            if col.get("wrap", True):
+                continue
+            max_w = f.measure(col["title"])
+            for data in rows_data:
+                text = data.get(key)
+                if text is None:
+                    continue
+                text = str(text).split("\n")[0]
+                if not text:
+                    continue
+                w = f.measure(text)
+                if w > max_w:
+                    max_w = w
+            self.widths[key] = max(col["width"], max_w + padding)
+
+    # ---------------- public API ----------------
     def set_rows(self, rows_data, iid_key="id"):
+        if self.autofit:
+            self._autofit_widths(rows_data)
         for row in self._rows:
             row["frame"].destroy()
         self._rows = []
         self._selected = None
         for data in rows_data:
             self._add_row(data, iid_key)
+        if self.autofit:
+            self._apply_widths()
         self.update_idletasks()
         self._update_scrollregion()
         bind_mousewheel_recursive(self.body, self.body_canvas)
@@ -438,6 +492,7 @@ class ScrollableTable(ttk.Frame):
                 return
         self._paint_selected(None)
 
+    # ---------------- rows ----------------
     def _add_row(self, data, iid_key):
         iid = str(data[iid_key])
         total_w = sum(self.widths[c["key"]] for c in self.columns)
@@ -468,16 +523,23 @@ class ScrollableTable(ttk.Frame):
         frame = row["frame"]
         cells = row["cells"]
 
+        # Первичная раскладка: определяем wraplength для каждой ячейки.
         x = 0
         for col in self.columns:
             key = col["key"]
             w = self.widths[key]
             lbl = cells[key]
             wrap_len = max(20, w - 2 * self.CELL_PAD_X - 2 * self.BORDER)
-            lbl.configure(wraplength=wrap_len)
+            # Перенос разрешаем либо для колонок с wrap=True,
+            # либо для всех колонок, если включён режим wrap_when_narrow.
+            if self.wrap_when_narrow or col.get("wrap", True):
+                lbl.configure(wraplength=wrap_len)
+            else:
+                lbl.configure(wraplength=0)
             lbl.place(x=x, y=0, width=w)
             x += w
 
+        # Высота строки = максимум высот ячеек (после автопереноса).
         frame.update_idletasks()
         h = 1
         for col in self.columns:
